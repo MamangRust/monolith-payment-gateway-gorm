@@ -9,8 +9,7 @@ alerting:
         - targets: ["alertmanager:9093"]
 
 rule_files:
-  - rules/payment-gateway-alerts.yaml
-  - rules/jvm-alerts.yaml
+  - rules/go-alerts.yaml
   - rules/infrastructure-alerts.yaml
   - rules/postgres-alerts.yaml
   - rules/kafka-alerts.yaml

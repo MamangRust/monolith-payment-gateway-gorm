@@ -612,6 +612,7 @@
         "query": { "query": "label_values(golang_app_requests_total, service_name)", "refId": "Prometheus-service-Variable-Query" },
         "refresh": 1,
         "regex": "",
+        "allValue": ".+",
         "sort": 1,
         "type": "query"
       }

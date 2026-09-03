@@ -62,7 +62,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(go_memstats_heap_alloc_bytes{application=~\"$application\"})",
+          "expr": "sum(golang_app_go_memory_used_bytes{service_name=~\"$service\"})",
           "legendFormat": "heap",
           "refId": "A"
         }
@@ -93,7 +93,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(go_goroutines{application=~\"$application\"})",
+          "expr": "sum(golang_app_go_goroutine_count{service_name=~\"$service\"})",
           "legendFormat": "goroutines",
           "refId": "A"
         }
@@ -124,7 +124,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(go_memstats_mallocs_total{application=~\"$application\"}[$__rate_interval]))",
+          "expr": "sum(rate(golang_app_go_memory_allocations_total{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "alloc/s",
           "refId": "A"
         }
@@ -133,7 +133,7 @@
     {
       "id": 404,
       "type": "stat",
-      "title": "Process CPU Utilization",
+      "title": "GOMAXPROCS (All Services)",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": {
@@ -162,8 +162,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(process_cpu_seconds_total{application=~\"$application\"}[$__rate_interval]))",
-          "legendFormat": "cpu cores",
+          "expr": "sum(golang_app_go_processor_limit{service_name=~\"$service\"})",
+          "legendFormat": "procs",
           "refId": "A"
         }
       ]
@@ -204,8 +204,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_memstats_heap_alloc_bytes{application=~\"$application\"})",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (golang_app_go_memory_used_bytes{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -238,8 +238,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (rate(go_memstats_mallocs_total{application=~\"$application\"}[$__rate_interval]))",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (rate(golang_app_go_memory_allocations_total{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -277,14 +277,14 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_memstats_heap_alloc_bytes{application=~\"$application\"})",
-          "legendFormat": "{{application}} used",
+          "expr": "sum by (service_name) (golang_app_go_memory_used_bytes{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}} used",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_memstats_next_gc_bytes{application=~\"$application\"})",
-          "legendFormat": "{{application}} goal",
+          "expr": "sum by (service_name) (golang_app_go_memory_gc_goal_bytes{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}} goal",
           "refId": "B"
         }
       ]
@@ -317,8 +317,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (process_resident_memory_bytes{application=~\"$application\"})",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (golang_app_go_memory_allocated_bytes_total{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -358,8 +358,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_goroutines{application=~\"$application\"})",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (golang_app_go_goroutine_count{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -367,7 +367,7 @@
     {
       "id": 422,
       "type": "timeseries",
-      "title": "GC Duration (avg) by Service",
+      "title": "GOGC % by Service",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "fieldConfig": {
@@ -381,7 +381,7 @@
             "spanNulls": true,
             "stacking": { "group": "A", "mode": "none" }
           },
-          "unit": "s"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -392,8 +392,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (rate(go_gc_duration_seconds_sum{application=~\"$application\"}[$__rate_interval]) / clamp_min(rate(go_gc_duration_seconds_count{application=~\"$application\"}[$__rate_interval]), 1))",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (golang_app_go_config_gogc_percent{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -401,7 +401,7 @@
     {
       "id": 423,
       "type": "timeseries",
-      "title": "GC Duration Quantiles by Service",
+      "title": "GC Goal by Service",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
       "fieldConfig": {
@@ -415,7 +415,7 @@
             "spanNulls": true,
             "stacking": { "group": "A", "mode": "none" }
           },
-          "unit": "s"
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -426,28 +426,16 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "go_gc_duration_seconds{application=~\"$application\", quantile=\"0.5\"}",
-          "legendFormat": "{{application}} p50",
+          "expr": "sum by (service_name) (golang_app_go_memory_gc_goal_bytes{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "go_gc_duration_seconds{application=~\"$application\", quantile=\"0.75\"}",
-          "legendFormat": "{{application}} p75",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "go_gc_duration_seconds{application=~\"$application\", quantile=\"1\"}",
-          "legendFormat": "{{application}} max",
-          "refId": "C"
         }
       ]
     },
     {
       "id": 424,
       "type": "timeseries",
-      "title": "Live Heap Objects by Service",
+      "title": "Allocations by Service",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
       "fieldConfig": {
@@ -472,8 +460,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_memstats_heap_objects{application=~\"$application\"})",
-          "legendFormat": "{{application}}",
+          "expr": "sum by (service_name) (golang_app_go_memory_allocations_total{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
           "refId": "A"
         }
       ]
@@ -503,8 +491,8 @@
         },
         "overrides": [
           { "matcher": { "id": "byName", "options": "Heap Used" }, "properties": [{ "id": "unit", "value": "bytes" }] },
-          { "matcher": { "id": "byName", "options": "CPU Cores" }, "properties": [{ "id": "unit", "value": "short" }] },
-          { "matcher": { "id": "byName", "options": "GC Max" }, "properties": [{ "id": "unit", "value": "s" }] }
+          { "matcher": { "id": "byName", "options": "GOMAXPROCS" }, "properties": [{ "id": "unit", "value": "short" }] },
+          { "matcher": { "id": "byName", "options": "GOGC %" }, "properties": [{ "id": "unit", "value": "percent" }] }
         ]
       },
       "options": {
@@ -516,7 +504,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_memstats_heap_alloc_bytes{application=~\"$application\"})",
+          "expr": "sum by (service_name) (golang_app_go_memory_used_bytes{service_name=~\"$service\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -524,7 +512,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (go_goroutines{application=~\"$application\"})",
+          "expr": "sum by (service_name) (golang_app_go_goroutine_count{service_name=~\"$service\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -532,7 +520,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (application) (rate(process_cpu_seconds_total{application=~\"$application\"}[$__rate_interval]))",
+          "expr": "sum by (service_name) (golang_app_go_processor_limit{service_name=~\"$service\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -540,7 +528,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "go_gc_duration_seconds{application=~\"$application\", quantile=\"1\"}",
+          "expr": "sum by (service_name) (golang_app_go_config_gogc_percent{service_name=~\"$service\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -551,7 +539,7 @@
         {
           "id": "joinByField",
           "options": {
-            "byField": "application",
+            "byField": "service_name",
             "mode": "outer"
           }
         },
@@ -568,9 +556,9 @@
             "renameByName": {
               "Value #A": "Heap Used",
               "Value #B": "Goroutines",
-              "Value #C": "CPU Cores",
-              "Value #D": "GC Max",
-              "application": "Application"
+              "Value #C": "GOMAXPROCS",
+              "Value #D": "GOGC %",
+              "service_name": "Service"
             }
           }
         }
@@ -585,15 +573,16 @@
       {
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "definition": "label_values(go_goroutines, application)",
+        "definition": "label_values(golang_app_go_goroutine_count, service_name)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
-        "name": "application",
+        "name": "service",
         "options": [],
-        "query": { "query": "label_values(go_goroutines, application)", "refId": "Prometheus-application-Variable-Query" },
+        "query": { "query": "label_values(golang_app_go_goroutine_count, service_name)", "refId": "Prometheus-service-Variable-Query" },
         "refresh": 1,
         "regex": "",
+        "allValue": ".+",
         "sort": 1,
         "type": "query"
       }

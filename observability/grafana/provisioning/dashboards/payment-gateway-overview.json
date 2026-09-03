@@ -289,7 +289,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(go_goroutines{application=~\"$application\"})",
+          "expr": "sum(golang_app_go_goroutine_count{service_name=~\"$service\"})",
           "legendFormat": "goroutines",
           "refId": "A"
         }
@@ -629,6 +629,7 @@
         "query": { "query": "label_values(golang_app_requests_total, service_name)", "refId": "Prometheus-service-Variable-Query" },
         "refresh": 1,
         "regex": "",
+        "allValue": ".+",
         "sort": 1,
         "type": "query"
       },
@@ -644,6 +645,7 @@
         "query": { "query": "label_values(go_goroutines, application)", "refId": "Prometheus-application-Variable-Query" },
         "refresh": 1,
         "regex": "",
+        "allValue": ".+",
         "sort": 1,
         "type": "query"
       }
