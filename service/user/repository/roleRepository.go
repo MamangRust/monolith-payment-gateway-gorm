@@ -1,0 +1,40 @@
+package repository
+
+import (
+	"context"
+
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
+	sharedErrors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
+	role_errors "github.com/MamangRust/monolith-payment-gateway-shared/errors/role_errors/repository"
+	"gorm.io/gorm"
+)
+
+type roleRepository struct {
+	db *gorm.DB
+}
+
+func NewRoleRepository(db *gorm.DB) RoleRepository {
+	return &roleRepository{db: db}
+}
+
+func (r *roleRepository) FindById(ctx context.Context, id int) (*models.Role, error) {
+	var role models.Role
+	if err := r.db.WithContext(ctx).Where("role_id = ?", id).First(&role).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, role_errors.ErrRoleNotFound.WithInternal(err)
+		}
+		return nil, sharedErrors.ErrInternal.WithInternal(err)
+	}
+	return &role, nil
+}
+
+func (r *roleRepository) FindByName(ctx context.Context, name string) (*models.Role, error) {
+	var role models.Role
+	if err := r.db.WithContext(ctx).Where("role_name = ?", name).First(&role).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, role_errors.ErrRoleNotFound.WithInternal(err)
+		}
+		return nil, sharedErrors.ErrInternal.WithInternal(err)
+	}
+	return &role, nil
+}
