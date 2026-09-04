@@ -11,47 +11,42 @@ import (
 	"time"
 
 	apihandler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/card"
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/card"
-	pbstats "github.com/MamangRust/monolith-payment-gateway-pb/card/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-card/handler"
 	"github.com/MamangRust/monolith-payment-gateway-card/repository"
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/card"
+	pbstats "github.com/MamangRust/monolith-payment-gateway-pb/card/stats"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type CardStatsApiTestSuite struct {
 	suite.Suite
-	ts             *tests.TestSuite
-	dbPool         *pgxpool.Pool
-	echo           *echo.Echo
-	cardNumber1    string
-	testYear       int
-	grpcServer     *grpc.Server
-	lis            *bufconn.Listener
-	conn           *grpc.ClientConn
+	ts          *tests.TestSuite
+	gormDB      *gorm.DB
+	echo        *echo.Echo
+	cardNumber1 string
+	testYear    int
+	grpcServer  *grpc.Server
+	lis         *bufconn.Listener
+	conn        *grpc.ClientConn
 }
 
 func (s *CardStatsApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -61,6 +56,7 @@ func (s *CardStatsApiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
+	s.gormDB = gormDB
 	repos := repository.NewRepositories(gormDB)
 
 	logger.ResetInstance()
@@ -80,7 +76,7 @@ func (s *CardStatsApiTestSuite) SetupSuite() {
 	// Setup gRPC server
 	s.lis = bufconn.Listen(1024 * 1024)
 	s.grpcServer = grpc.NewServer()
-	
+
 	pb.RegisterCardQueryServiceServer(s.grpcServer, cardH)
 	pbstats.RegisterCardStatsBalanceServiceServer(s.grpcServer, cardH)
 	pbstats.RegisterCardStatsTopupServiceServer(s.grpcServer, cardH)
@@ -119,17 +115,20 @@ func (s *CardStatsApiTestSuite) SetupSuite() {
 	s.cardNumber1 = "4444555566667777"
 
 	var userID int32
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Api', 'Stats', 'api_stats_card@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err = s.gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Api', 'Stats', 'api_stats_card@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
 	s.Require().NoError(err)
 
-	s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", userID, s.cardNumber1)
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", userID, s.cardNumber1).Error
+	s.Require().NoError(err)
 
 	s.seedHistoricalData()
 }
 
 func (s *CardStatsApiTestSuite) seedHistoricalData() {
-	s.dbPool.Exec(context.Background(), "INSERT INTO saldos (card_number, total_balance, created_at, updated_at) VALUES ($1, $2, $3, $3)", s.cardNumber1, 1000, time.Date(s.testYear, 1, 15, 10, 0, 0, 0, time.UTC))
-	s.dbPool.Exec(context.Background(), "INSERT INTO topups (card_number, topup_amount, topup_time, topup_method, status) VALUES ($1, $2, $3, 'api', 'success')", s.cardNumber1, 500, time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC))
+	err := s.gormDB.WithContext(context.Background()).Exec("INSERT INTO saldos (card_number, total_balance, created_at, updated_at) VALUES (?, ?, ?, ?)", s.cardNumber1, 1000, time.Date(s.testYear, 1, 15, 10, 0, 0, 0, time.UTC), time.Date(s.testYear, 1, 15, 10, 0, 0, 0, time.UTC)).Error
+	s.Require().NoError(err)
+	err = s.gormDB.WithContext(context.Background()).Exec("INSERT INTO topups (card_number, topup_amount, topup_time, topup_method, status) VALUES (?, ?, ?, 'api', 'success')", s.cardNumber1, 500, time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC)).Error
+	s.Require().NoError(err)
 }
 
 func (s *CardStatsApiTestSuite) TearDownSuite() {
@@ -138,9 +137,6 @@ func (s *CardStatsApiTestSuite) TearDownSuite() {
 	}
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()
@@ -154,7 +150,7 @@ func (s *CardStatsApiTestSuite) TestBalanceApi() {
 	s.echo.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &response)
 	data := response["data"].([]interface{})
@@ -175,7 +171,7 @@ func (s *CardStatsApiTestSuite) TestTopupApi() {
 	s.echo.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &response)
 	data := response["data"].([]interface{})

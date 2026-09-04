@@ -12,32 +12,30 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/user"
 	user_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/user"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	"github.com/MamangRust/monolith-payment-gateway-user/handler"
-	"github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/MamangRust/monolith-payment-gateway-user/handler"
+	"github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/labstack/echo/v4"
 	redis_client "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type UserApiTestSuite struct {
 	suite.Suite
 	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
 	echo       *echo.Echo
 	grpcServer *grpc.Server
 	lis        *bufconn.Listener
@@ -48,10 +46,6 @@ func (s *UserApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis_client.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -115,9 +109,6 @@ func (s *UserApiTestSuite) SetupSuite() {
 func (s *UserApiTestSuite) TearDownSuite() {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

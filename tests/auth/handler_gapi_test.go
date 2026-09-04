@@ -11,27 +11,25 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-auth/repository"
 	"github.com/MamangRust/monolith-payment-gateway-auth/service"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/auth"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
 type AuthHandlerGapiTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
 	redisClient *redis.Client
 	client      pb.AuthServiceClient
 	conn        *grpc.ClientConn
@@ -45,10 +43,6 @@ func (s *AuthHandlerGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -99,7 +93,8 @@ func (s *AuthHandlerGapiTestSuite) SetupSuite() {
 	s.password = "password123"
 
 	// Seed ROLE_ADMIN
-	_, _ = pool.Exec(context.Background(), "INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN')")
+	err = gormDB.WithContext(context.Background()).Exec("INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN') ON CONFLICT (role_name) DO NOTHING").Error
+	s.Require().NoError(err)
 }
 
 func (s *AuthHandlerGapiTestSuite) TearDownSuite() {
@@ -111,9 +106,6 @@ func (s *AuthHandlerGapiTestSuite) TearDownSuite() {
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }
@@ -192,11 +184,11 @@ func (s *AuthHandlerGapiTestSuite) Test4_LoginLockout() {
 func (s *AuthHandlerGapiTestSuite) Test3_GetMe() {
 	s.Require().NotEmpty(s.accessToken)
 	ctx := context.Background()
-	
+
 	tokenManager, _ := auth.NewManager("mysecret")
 	userIdStr, err := tokenManager.ValidateToken(s.accessToken)
 	s.NoError(err)
-	
+
 	userId, err := strconv.Atoi(userIdStr)
 	s.NoError(err)
 

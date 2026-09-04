@@ -3,16 +3,18 @@ package seeder
 import (
 	"context"
 	"fmt"
+	"time"
 
 	apikey "github.com/MamangRust/monolith-payment-gateway-pkg/api-key"
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // merchantSeeder is a struct that represents a seeder for the merchants table.
 type merchantSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -21,13 +23,13 @@ type merchantSeeder struct {
 // responsible for populating the merchants table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the merchantSeeder struct
-func NewMerchantSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *merchantSeeder {
+func NewMerchantSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *merchantSeeder {
 	return &merchantSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -57,14 +59,13 @@ func (r *merchantSeeder) Seed() error {
 
 		apiKey, _ := apikey.GenerateApiKey()
 
-		req := db.CreateMerchantParams{
+		merchant := &models.Merchant{
 			Name:   merchantName,
 			UserID: int32((i % 5) + 1),
 			ApiKey: apiKey,
 		}
 
-		merchant, err := r.db.CreateMerchant(r.ctx, req)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(merchant).Error; err != nil {
 			r.logger.Error("failed to seed merchant", zap.Int("merchant", i+1), zap.Error(err))
 			return fmt.Errorf("failed to seed merchant %d: %w", i+1, err)
 		}
@@ -76,18 +77,18 @@ func (r *merchantSeeder) Seed() error {
 			status = "deactive"
 		}
 
-		_, err = r.db.UpdateMerchantStatus(r.ctx, db.UpdateMerchantStatusParams{
-			MerchantID: merchant.MerchantID,
-			Status:     status,
-		})
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Model(&models.Merchant{}).
+			Where("merchant_id = ?", merchant.MerchantID).
+			Update("status", status).Error; err != nil {
 			r.logger.Error("failed to update merchant status", zap.Int("merchantID", int(merchant.MerchantID)), zap.String("status", status), zap.Error(err))
 			return fmt.Errorf("failed to update status for merchant ID %d: %w", merchant.MerchantID, err)
 		}
 
 		if i >= activeMerchants {
-			_, err = r.db.TrashMerchant(r.ctx, merchant.MerchantID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Merchant{}).
+				Where("merchant_id = ? AND deleted_at IS NULL", merchant.MerchantID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash merchant", zap.Int("merchant", i+1), zap.Error(err))
 				return fmt.Errorf("failed to trash merchant %d: %w", i+1, err)
 			}

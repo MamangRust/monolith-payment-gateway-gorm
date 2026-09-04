@@ -11,22 +11,22 @@ import (
 
 type topupCachedResponseAll struct {
 	Data  []*models.TopupListRow `json:"data"`
-	Total *int               `json:"total_records"`
+	Total *int                   `json:"total_records"`
 }
 
 type topupCachedResponseByCard struct {
 	Data  []*models.TopupListRow `json:"data"`
-	Total *int                           `json:"total_records"`
+	Total *int                   `json:"total_records"`
 }
 
 type topupCachedResponseActive struct {
 	Data  []*models.TopupListRow `json:"data"`
-	Total *int                     `json:"total_records"`
+	Total *int                   `json:"total_records"`
 }
 
 type topupCachedResponseTrashed struct {
 	Data  []*models.TopupListWithDeletedRow `json:"data"`
-	Total *int                      `json:"total_records"`
+	Total *int                              `json:"total_records"`
 }
 
 type topupQueryCache struct {

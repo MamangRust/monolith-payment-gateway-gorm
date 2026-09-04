@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type sqlStateError struct {
@@ -33,17 +31,6 @@ func TestErrConstraintOrFailedMapsUniqueViolationToConflict(t *testing.T) {
 	}
 	if err.Error() == (sqlStateError{state: "23505"}).Error() {
 		t.Fatal("database detail leaked into public error")
-	}
-}
-
-func TestErrConstraintOrFailedMapsPostgresUniqueViolationToConflict(t *testing.T) {
-	err := ErrConstraintOrFailed(&pgconn.PgError{Code: "23505"}, "Merchant", "create merchant")
-
-	if err.Code != 409 {
-		t.Fatalf("expected HTTP 409 for pgconn unique violation, got %d", err.Code)
-	}
-	if err.Message != "Merchant already exists" {
-		t.Fatalf("unexpected public message: %q", err.Message)
 	}
 }
 

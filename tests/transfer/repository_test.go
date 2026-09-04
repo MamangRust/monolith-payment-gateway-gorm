@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MamangRust/monolith-payment-gateway-transfer/repository"
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
+	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"github.com/MamangRust/monolith-payment-gateway-transfer/repository"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -32,7 +32,6 @@ func (s *TransferRepositoryTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -59,36 +58,36 @@ func (s *TransferRepositoryTestSuite) TearDownSuite() {
 }
 
 func (s *TransferRepositoryTestSuite) createSeedTransfer() (*repository.TransferAtomicResult, error) {
-    fromCard, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
+	fromCard, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),
 		CVV:          "111",
 		CardProvider: "Visa",
 	})
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    toCard, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
+	toCard, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),
 		CVV:          "222",
 		CardProvider: "MasterCard",
 	})
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    // Seed saldo for both cards
-    saldoRepo := saldo_repo.NewSaldoCommandRepository(s.gormDB)
-    if _, err := saldoRepo.CreateSaldo(context.Background(), &requests.CreateSaldoRequest{CardNumber: fromCard.CardNumber, TotalBalance: 1000000}); err != nil {
-        return nil, err
-    }
-    if _, err := saldoRepo.CreateSaldo(context.Background(), &requests.CreateSaldoRequest{CardNumber: toCard.CardNumber, TotalBalance: 0}); err != nil {
-        return nil, err
-    }
+	// Seed saldo for both cards
+	saldoRepo := saldo_repo.NewSaldoCommandRepository(s.gormDB)
+	if _, err := saldoRepo.CreateSaldo(context.Background(), &requests.CreateSaldoRequest{CardNumber: fromCard.CardNumber, TotalBalance: 1000000}); err != nil {
+		return nil, err
+	}
+	if _, err := saldoRepo.CreateSaldo(context.Background(), &requests.CreateSaldoRequest{CardNumber: toCard.CardNumber, TotalBalance: 0}); err != nil {
+		return nil, err
+	}
 
 	return s.repo.CreateTransferAtomic(context.Background(), &requests.CreateTransferRequest{
 		TransferFrom:   fromCard.CardNumber,
@@ -100,7 +99,7 @@ func (s *TransferRepositoryTestSuite) createSeedTransfer() (*repository.Transfer
 func (s *TransferRepositoryTestSuite) TestCreateTransfer() {
 	ctx := context.Background()
 
-    fromCard, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
+	fromCard, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),
@@ -108,17 +107,17 @@ func (s *TransferRepositoryTestSuite) TestCreateTransfer() {
 		CardProvider: "Visa",
 	})
 
-    toCard, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
+	toCard, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),
 		CVV:          "222",
 		CardProvider: "MasterCard",
-    })
+	})
 
-    saldoRepo := saldo_repo.NewSaldoCommandRepository(s.gormDB)
-    saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: fromCard.CardNumber, TotalBalance: 1000000})
-    saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: toCard.CardNumber, TotalBalance: 0})
+	saldoRepo := saldo_repo.NewSaldoCommandRepository(s.gormDB)
+	saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: fromCard.CardNumber, TotalBalance: 1000000})
+	saldoRepo.CreateSaldo(ctx, &requests.CreateSaldoRequest{CardNumber: toCard.CardNumber, TotalBalance: 0})
 
 	req := &requests.CreateTransferRequest{
 		TransferFrom:   fromCard.CardNumber,

@@ -13,27 +13,24 @@ import (
 	"time"
 
 	saldo_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/saldo"
-	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
-	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
-	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
 	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
+	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
+	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
+	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/handler"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/service"
-	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
-	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
+	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
+	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/labstack/echo/v4"
 	redis_client "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -41,29 +38,26 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type SaldoApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	grpcServer  *grpc.Server
-	lis         *bufconn.Listener
-	userID      int32
-	cardID      int32
-	cardNumber  string
-	saldoID     int32
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	grpcServer *grpc.Server
+	lis        *bufconn.Listener
+	userID     int32
+	cardID     int32
+	cardNumber string
+	saldoID    int32
 }
 
 func (s *SaldoApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis_client.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -169,9 +163,6 @@ func (s *SaldoApiTestSuite) TearDownSuite() {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
 	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}
@@ -220,7 +211,7 @@ func (s *SaldoApiTestSuite) Test2_QueryOperations() {
 	rec = httptest.NewRecorder()
 	s.echo.ServeHTTP(rec, req)
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	// FindByCardNumber
 	req = httptest.NewRequest(http.MethodGet, "/api/saldo-query/card_number/"+s.cardNumber, nil)
 	rec = httptest.NewRecorder()
@@ -234,7 +225,7 @@ func (s *SaldoApiTestSuite) Test3_TrashAndRestore() {
 	rec := httptest.NewRecorder()
 	s.echo.ServeHTTP(rec, req)
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	// FindTrashed
 	req = httptest.NewRequest(http.MethodGet, "/api/saldo-query/trashed?page=1&page_size=10&search="+s.cardNumber, nil)
 	rec = httptest.NewRecorder()

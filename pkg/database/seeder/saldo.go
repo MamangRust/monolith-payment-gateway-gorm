@@ -2,18 +2,20 @@ package seeder
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
 	"math/rand"
+	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // saldoSeeder is a struct that represents a seeder for the saldos table.
 type saldoSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -22,13 +24,13 @@ type saldoSeeder struct {
 // responsible for populating the saldos table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the saldoSeeder struct
-func NewSaldoSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *saldoSeeder {
+func NewSaldoSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *saldoSeeder {
 	return &saldoSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -51,18 +53,19 @@ func (r *saldoSeeder) Seed() error {
 	activeSaldos := 5
 	trashedSaldos := 5
 
-	var cards []db.GetCardByUserIDRow
+	var cards []models.Card
 	for i := 1; i <= totalSaldos; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		var card models.Card
+		err := r.db.WithContext(r.ctx).Where("user_id = ?", int32(i)).First(&card).Error
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				r.logger.Error("no card found for user", zap.Int("userID", i))
+				continue
+			}
 			r.logger.Error("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			return fmt.Errorf("failed to get card for user %d: %w", i, err)
 		}
-		if card == nil {
-			r.logger.Error("no card found for user", zap.Int("userID", i))
-			continue
-		}
-		cards = append(cards, *card)
+		cards = append(cards, card)
 	}
 
 	if len(cards) < totalSaldos {
@@ -71,20 +74,21 @@ func (r *saldoSeeder) Seed() error {
 	}
 
 	for i, card := range cards {
-		request := db.CreateSaldoParams{
+		saldo := &models.Saldo{
 			CardNumber:   card.CardNumber,
 			TotalBalance: int32(rand.Intn(9_000_000) + 1_000_000),
 		}
 
-		saldo, err := r.db.CreateSaldo(r.ctx, request)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(saldo).Error; err != nil {
 			r.logger.Error("failed to seed saldo", zap.Int("index", i), zap.String("card", card.CardNumber), zap.Error(err))
 			return fmt.Errorf("failed to seed saldo for card %s: %w", card.CardNumber, err)
 		}
 
 		if i >= activeSaldos {
-			_, err = r.db.TrashSaldo(r.ctx, saldo.SaldoID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Saldo{}).
+				Where("saldo_id = ? AND deleted_at IS NULL", saldo.SaldoID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash saldo", zap.Int("index", i), zap.String("card", card.CardNumber), zap.Error(err))
 				return fmt.Errorf("failed to trash saldo %d for card %s: %w", i+1, card.CardNumber, err)
 			}

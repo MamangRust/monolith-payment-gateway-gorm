@@ -4,14 +4,14 @@ package models
 
 // WithdrawMonthlyAmountRow - monthly withdraw amount stats
 type WithdrawMonthlyAmountRow struct {
-	Month              string `gorm:"column:month" json:"month"`
-	TotalWithdrawAmount int32 `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
+	Month               string `gorm:"column:month" json:"month"`
+	TotalWithdrawAmount int32  `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
 }
 
 // WithdrawYearlyAmountRow - yearly withdraw amount stats
 type WithdrawYearlyAmountRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalWithdrawAmount int64      `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
+	Year                string `gorm:"column:year" json:"year"`
+	TotalWithdrawAmount int64  `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
 }
 
 // WithdrawMonthlyStatusSuccessRow - monthly status success stats

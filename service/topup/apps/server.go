@@ -73,7 +73,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 		Logger:       srv.Logger,
 		Cache:        srv.CacheStore,
 	})
-	relay, relayErr := outbox.NewRelay(srv.DBPool, myKafka, outbox.RelayConfig{})
+	relay, relayErr := outbox.NewRelay(srv.GormDB, myKafka, outbox.RelayConfig{})
 	if relayErr != nil {
 		srv.Cleanup()
 		return nil, fmt.Errorf("initialize topup outbox relay: %w", relayErr)

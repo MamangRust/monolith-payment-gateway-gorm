@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/MamangRust/monolith-payment-gateway-role/apps"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/server"
+	"github.com/MamangRust/monolith-payment-gateway-role/apps"
 )
 
 func main() {

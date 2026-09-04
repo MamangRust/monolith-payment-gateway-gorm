@@ -13,32 +13,29 @@ import (
 	"time"
 
 	topup_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/topup"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/adapter"
+	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
+	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
+	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
 	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
 	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/topup"
 	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/adapter"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
-	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
 	saldo_handler "github.com/MamangRust/monolith-payment-gateway-saldo/handler"
 	saldo_repository "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	saldo_service "github.com/MamangRust/monolith-payment-gateway-saldo/service"
+	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
+	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-topup/handler"
 	"github.com/MamangRust/monolith-payment-gateway-topup/repository"
 	"github.com/MamangRust/monolith-payment-gateway-topup/service"
 	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
 	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
-	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
-	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -46,30 +43,27 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TopupApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	userID      int32
-	cardID      int32
-	cardNumber  string
-	topupID     int
-	grpcServer  *grpc.Server
-	lis         *bufconn.Listener
-	conn        *grpc.ClientConn
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	userID     int32
+	cardID     int32
+	cardNumber string
+	topupID    int
+	grpcServer *grpc.Server
+	lis        *bufconn.Listener
+	conn       *grpc.ClientConn
 }
 
 func (s *TopupApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -79,7 +73,7 @@ func (s *TopupApiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
 	log, _ := logger.NewLogger("test", lp)
@@ -114,7 +108,7 @@ func (s *TopupApiTestSuite) SetupSuite() {
 	// Setup gRPC server for adapters and Topup GAPI
 	s.lis = bufconn.Listen(1024 * 1024)
 	s.grpcServer = grpc.NewServer()
-	
+
 	// Register dependencies
 	pbcard.RegisterCardQueryServiceServer(s.grpcServer, cardH)
 	pbcard.RegisterCardCommandServiceServer(s.grpcServer, cardH)
@@ -200,9 +194,6 @@ func (s *TopupApiTestSuite) TearDownSuite() {
 	}
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

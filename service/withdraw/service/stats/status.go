@@ -35,7 +35,6 @@ type withdrawStatsStatusService struct {
 	observability observability.TraceLoggerObservability
 }
 
-
 func NewWithdrawStatsStatusService(params *WithdrawStatsStatusDeps) WithdrawStatsStatusService {
 	return &withdrawStatsStatusService{
 		cache:         params.Cache,

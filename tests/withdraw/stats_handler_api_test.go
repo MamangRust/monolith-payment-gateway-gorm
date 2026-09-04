@@ -15,8 +15,6 @@ import (
 
 	withdraw_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/withdraw"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/withdraw/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
@@ -25,7 +23,6 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/handler"
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -33,29 +30,26 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type WithdrawStatsHandlerApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	lis         *bufconn.Listener
-	conn        *grpc.ClientConn
-	userID      int32
-	cardNumber  string
-	testYear    int
-	testMonth   int
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	lis        *bufconn.Listener
+	conn       *grpc.ClientConn
+	userID     int32
+	cardNumber string
+	testYear   int
+	testMonth  int
 }
 
 func (s *WithdrawStatsHandlerApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
@@ -95,10 +89,10 @@ func (s *WithdrawStatsHandlerApiTestSuite) SetupSuite() {
 		}
 	}()
 
-	conn, err := grpc.NewClient("passthrough://bufnet", 
+	conn, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 	s.conn = conn
@@ -119,15 +113,15 @@ func (s *WithdrawStatsHandlerApiTestSuite) SetupSuite() {
 	s.testMonth = int(time.Now().Month())
 
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('WithdrawApi', 'Stats', 'withdraw_api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('WithdrawApi', 'Stats', 'withdraw_api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber = "9999000011112222"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber).Error
 	s.Require().NoError(err)
 
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO withdraws (card_number, withdraw_amount, withdraw_time, status) VALUES ($1, $2, $3, 'success')", 
-		s.cardNumber, 300000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO withdraws (card_number, withdraw_amount, withdraw_time, status) VALUES (?, ?, ?, 'success')",
+		s.cardNumber, 300000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 }
 
@@ -137,9 +131,6 @@ func (s *WithdrawStatsHandlerApiTestSuite) TearDownSuite() {
 	}
 	if s.lis != nil {
 		s.lis.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }

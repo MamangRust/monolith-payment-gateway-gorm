@@ -1,12 +1,12 @@
 package cardstatsbycard
 
 import (
-	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"context"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 
 	cardstatsmencache "github.com/MamangRust/monolith-payment-gateway-card/redis/statsbycard"
 	repository "github.com/MamangRust/monolith-payment-gateway-card/repository/statsbycard"
-	
+
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"

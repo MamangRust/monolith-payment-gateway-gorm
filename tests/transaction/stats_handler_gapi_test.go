@@ -8,21 +8,20 @@ import (
 
 	pbtransaction "github.com/MamangRust/monolith-payment-gateway-pb/transaction"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/transaction/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/handler"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	merchant_repo "github.com/MamangRust/monolith-payment-gateway-merchant/repository"
@@ -32,7 +31,6 @@ import (
 type TransactionStatsHandlerGapiTestSuite struct {
 	suite.Suite
 	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
 	lis        *bufconn.Listener
 	conn       *grpc.ClientConn
 	client     pb.TransactionStatsStatusServiceClient
@@ -47,10 +45,6 @@ func (s *TransactionStatsHandlerGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -105,18 +99,18 @@ func (s *TransactionStatsHandlerGapiTestSuite) SetupSuite() {
 	s.testMonth = int(time.Now().Month())
 
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TransactionGapi', 'Stats', 'transaction_gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TransactionGapi', 'Stats', 'transaction_gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber = "2222333344445555"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber).Error
 	s.Require().NoError(err)
 
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant Gapi', 'test_key_gapi', $1, 'active') RETURNING merchant_id", s.userID).Scan(&s.merchantID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant Gapi', 'test_key_gapi', ?, 'active') RETURNING merchant_id", s.userID).Scan(&s.merchantID).Error
 	s.Require().NoError(err)
 
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES ($1, $2, $3, 'credit_card', $4, 'success')",
-		s.cardNumber, s.merchantID, 200000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES (?, ?, ?, 'credit_card', ?, 'success')",
+		s.cardNumber, s.merchantID, 200000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 }
 
@@ -126,9 +120,6 @@ func (s *TransactionStatsHandlerGapiTestSuite) TearDownSuite() {
 	}
 	if s.lis != nil {
 		s.lis.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }

@@ -7,31 +7,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MamangRust/monolith-payment-gateway-pkg/adapter"
+	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
+	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
+	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
 	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
 	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/topup"
 	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/adapter"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
-	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
 	saldo_handler "github.com/MamangRust/monolith-payment-gateway-saldo/handler"
 	saldo_repository "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	saldo_service "github.com/MamangRust/monolith-payment-gateway-saldo/service"
+	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-topup/handler"
 	"github.com/MamangRust/monolith-payment-gateway-topup/repository"
 	"github.com/MamangRust/monolith-payment-gateway-topup/service"
 	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
 	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
-	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -39,30 +36,27 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TopupGapiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	topupH      handler.Handler
-	userID      int32
-	cardID      int32
-	cardNumber  string
-	topupID     int32
-	grpcServer  *grpc.Server
-	lis         *bufconn.Listener
-	conn        *grpc.ClientConn
+	ts         *tests.TestSuite
+	topupH     handler.Handler
+	userID     int32
+	cardID     int32
+	cardNumber string
+	topupID    int32
+	grpcServer *grpc.Server
+	lis        *bufconn.Listener
+	conn       *grpc.ClientConn
 }
 
 func (s *TopupGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -72,7 +66,7 @@ func (s *TopupGapiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	logger.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
 	log, _ := logger.NewLogger("test", lp)
@@ -176,9 +170,6 @@ func (s *TopupGapiTestSuite) TearDownSuite() {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
 	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}
@@ -221,7 +212,7 @@ func (s *TopupGapiTestSuite) Test2_QueryOperations() {
 	s.Require().NotZero(s.topupID)
 
 	allReq := &pb.FindAllTopupRequest{Page: 1, PageSize: 10}
-	
+
 	// FindAll
 	resA, err := s.topupH.FindAllTopup(ctx, allReq)
 	s.NoError(err)

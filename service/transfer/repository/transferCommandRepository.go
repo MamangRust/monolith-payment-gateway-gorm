@@ -28,11 +28,11 @@ type TransferAtomicResult struct {
 func (r *transferCommandRepository) CreateTransferAtomic(ctx context.Context, request *requests.CreateTransferRequest) (*TransferAtomicResult, error) {
 	// Fast path: if idempotency key is set, check for existing record first
 	if request.IdempotencyKey != "" {
-	var existing models.TransferAllFieldsRow
-	err := r.db.WithContext(ctx).Raw(`SELECT transfer_id, transfer_no, transfer_from, transfer_to, transfer_amount, transfer_time, status, created_at, updated_at FROM transfers WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
-	if err == nil && existing.TransferID > 0 {
-		return &TransferAtomicResult{Row: &existing, Replayed: true}, nil
-	}
+		var existing models.TransferAllFieldsRow
+		err := r.db.WithContext(ctx).Raw(`SELECT transfer_id, transfer_no, transfer_from, transfer_to, transfer_amount, transfer_time, status, created_at, updated_at FROM transfers WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
+		if err == nil && existing.TransferID > 0 {
+			return &TransferAtomicResult{Row: &existing, Replayed: true}, nil
+		}
 	}
 	var result models.TransferAllFieldsRow
 	amount := int32(request.TransferAmount)

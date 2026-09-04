@@ -8,25 +8,23 @@ import (
 
 	"github.com/MamangRust/monolith-payment-gateway-card/repository"
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type CardServiceTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
 	cardService service.Service
-	dbPool      *pgxpool.Pool
 	cardID      int
 	userID      int
 }
@@ -35,10 +33,6 @@ func (s *CardServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -76,7 +70,6 @@ func (s *CardServiceTestSuite) SetupSuite() {
 }
 
 func (s *CardServiceTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 

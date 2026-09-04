@@ -114,5 +114,3 @@ func (r *cardRewardRepository) RedeemRewards(ctx context.Context, cardNumber str
 
 	return total, nil
 }
-
-

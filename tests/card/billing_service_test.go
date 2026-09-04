@@ -8,25 +8,24 @@ import (
 
 	"github.com/MamangRust/monolith-payment-gateway-card/repository"
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type BillingEngineServiceTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
 	cardService service.Service
-	dbPool      *pgxpool.Pool
+	gormDB      *gorm.DB
 	cardNumber  string
 	userID      int
 }
@@ -36,10 +35,6 @@ func (s *BillingEngineServiceTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
 	redisClient := redis.NewClient(opts)
@@ -48,6 +43,7 @@ func (s *BillingEngineServiceTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
+	s.gormDB = gormDB
 	repos := repository.NewRepositories(gormDB)
 
 	logger.ResetInstance()
@@ -88,7 +84,6 @@ func (s *BillingEngineServiceTestSuite) SetupSuite() {
 }
 
 func (s *BillingEngineServiceTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 
@@ -107,7 +102,7 @@ func (s *BillingEngineServiceTestSuite) Test2_TriggerBillingCycle() {
 	// Give the seeded credit card an outstanding balance so the scheduler has
 	// a real statement to generate. The period unique index makes this safe to
 	// trigger repeatedly.
-	_, err := s.dbPool.Exec(ctx, "UPDATE cards SET outstanding_balance = $1 WHERE card_number = $2", 100000, s.cardNumber)
+	err := s.gormDB.WithContext(ctx).Exec("UPDATE cards SET outstanding_balance = ? WHERE card_number = ?", 100000, s.cardNumber).Error
 	s.Require().NoError(err)
 
 	count, err := s.cardService.TriggerBillingCycle(ctx, today)
@@ -126,7 +121,7 @@ func (s *BillingEngineServiceTestSuite) Test3_PostPaymentTransitionsBillingAndRe
 	if len(cycles) == 0 {
 		// Keep this test runnable on its own instead of relying on the suite's
 		// execution order or another test having generated the statement.
-		_, err = s.dbPool.Exec(ctx, "UPDATE cards SET outstanding_balance = $1 WHERE card_number = $2", 100000, s.cardNumber)
+		err = s.gormDB.WithContext(ctx).Exec("UPDATE cards SET outstanding_balance = ? WHERE card_number = ?", 100000, s.cardNumber).Error
 		s.Require().NoError(err)
 		_, err = s.cardService.TriggerBillingCycle(ctx, time.Now().Day())
 		s.Require().NoError(err)
@@ -156,7 +151,7 @@ func (s *BillingEngineServiceTestSuite) Test3_PostPaymentTransitionsBillingAndRe
 	s.Equal("paid", cycle.Status)
 
 	var paymentCount int
-	err = s.dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM card_payments WHERE billing_id = $1", cycles[0].BillingID).Scan(&paymentCount)
+	err = s.gormDB.WithContext(ctx).Raw("SELECT COUNT(*) FROM card_payments WHERE billing_id = ?", cycles[0].BillingID).Scan(&paymentCount).Error
 	s.Require().NoError(err)
 	s.Equal(1, paymentCount)
 }

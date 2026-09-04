@@ -36,11 +36,11 @@ func (r *topupCommandRepository) CreateTopup(ctx context.Context, request *reque
 func (r *topupCommandRepository) CreateTopupAtomic(ctx context.Context, request *requests.CreateTopupRequest) (*TopupAtomicResult, error) {
 	// Fast path: if idempotency key is set, check for existing record first
 	if request.IdempotencyKey != "" {
-	var existing models.TopupAllFieldsRow
-	err := r.db.WithContext(ctx).Raw(`SELECT topup_id, topup_no, card_number, topup_amount, topup_method, topup_time, status, created_at, updated_at FROM topups WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
-	if err == nil && existing.TopupID > 0 {
-		return &TopupAtomicResult{Row: &existing, Replayed: true}, nil
-	}
+		var existing models.TopupAllFieldsRow
+		err := r.db.WithContext(ctx).Raw(`SELECT topup_id, topup_no, card_number, topup_amount, topup_method, topup_time, status, created_at, updated_at FROM topups WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
+		if err == nil && existing.TopupID > 0 {
+			return &TopupAtomicResult{Row: &existing, Replayed: true}, nil
+		}
 	}
 
 	var result models.TopupAllFieldsRow

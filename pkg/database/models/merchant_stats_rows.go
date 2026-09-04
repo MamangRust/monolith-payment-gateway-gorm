@@ -11,9 +11,9 @@ type MerchantMonthlyPaymentMethodRow struct {
 
 // MerchantYearlyPaymentMethodRow - yearly transaction stats by payment method
 type MerchantYearlyPaymentMethodRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	PaymentMethod string      `gorm:"column:payment_method" json:"payment_method"`
-	TotalAmount   int64       `gorm:"column:total_amount" json:"total_amount"`
+	Year          string `gorm:"column:year" json:"year"`
+	PaymentMethod string `gorm:"column:payment_method" json:"payment_method"`
+	TotalAmount   int64  `gorm:"column:total_amount" json:"total_amount"`
 }
 
 // MerchantMonthlyAmountRow - monthly transaction amount
@@ -25,7 +25,7 @@ type MerchantMonthlyAmountRow struct {
 // MerchantYearlyAmountRow - yearly transaction amount
 type MerchantYearlyAmountRow struct {
 	Year        string `gorm:"column:year" json:"year"`
-	TotalAmount int64       `gorm:"column:total_amount" json:"total_amount"`
+	TotalAmount int64  `gorm:"column:total_amount" json:"total_amount"`
 }
 
 // MerchantMonthlyTotalAmountRow - monthly total amount (with year)

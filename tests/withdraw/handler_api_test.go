@@ -1,33 +1,32 @@
 package withdraw_test
 
 import (
-	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
-	withdrawhandler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/withdraw"
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/withdraw"
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/service"
-	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	app_errors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
-	"github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/handler"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	withdrawhandler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/withdraw"
+	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/withdraw"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
+	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
+	app_errors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
+	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	"github.com/MamangRust/monolith-payment-gateway-test"
+	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/handler"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/service"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -38,18 +37,17 @@ import (
 
 type WithdrawHandlerTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient *redis.Client
-	grpcServer  *grpc.Server
+	ts            *tests.TestSuite
+	redisClient   *redis.Client
+	grpcServer    *grpc.Server
 	commandClient pb.WithdrawCommandServiceClient
 	queryClient   pb.WithdrawQueryServiceClient
-	conn        *grpc.ClientConn
-	router      *echo.Echo
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.CardCommandRepository
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	router        *echo.Echo
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.CardCommandRepository
+	saldoRepo     saldo_repo.Repositories
 
 	customerCardNumber string
 	withdrawID         int
@@ -60,24 +58,20 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	// Repositories for seeding and service dependencies
 	userRepos := user_repo.NewUserCommandRepository(gormDB)
 	cardRepos := card_repo.NewRepositories(gormDB)
 	saldoRepos := saldo_repo.NewRepositories(gormDB)
-	
+
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
-	
+
 	s.repos = repository.NewRepositories(gormDB, cardRepos.CardQuery, saldoRepos)
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
@@ -148,7 +142,7 @@ func (s *WithdrawHandlerTestSuite) SetupSuite() {
 	// Setup Echo
 	s.router = echo.New()
 	apiErrorHandler := app_errors.NewApiHandler(obs, log)
-	
+
 	withdrawhandler.RegisterWithdrawHandler(&withdrawhandler.DepsWithdraw{
 		Client:     conn,
 		E:          s.router,
@@ -167,9 +161,6 @@ func (s *WithdrawHandlerTestSuite) TearDownSuite() {
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()
@@ -227,7 +218,7 @@ func (s *WithdrawHandlerTestSuite) Test4_UpdateWithdraw() {
 		WithdrawTime:   time.Now(),
 	}
 	body, _ := json.Marshal(req)
-	
+
 	request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/withdraw-command/update/%d", s.withdrawID), bytes.NewBuffer(body))
 	request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()

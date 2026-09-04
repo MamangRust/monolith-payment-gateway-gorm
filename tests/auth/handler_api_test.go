@@ -15,29 +15,27 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-auth/repository"
 	"github.com/MamangRust/monolith-payment-gateway-auth/service"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/auth"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
+	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
-	"github.com/labstack/echo/v4"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
 type AuthHandlerApiTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
 	redisClient *redis.Client
 	server      *echo.Echo
 	email       string
@@ -50,10 +48,6 @@ func (s *AuthHandlerApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -99,7 +93,7 @@ func (s *AuthHandlerApiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 
 	s.server = echo.New()
-	
+
 	obs, _ := observability.NewObservability("test", log)
 	apiHandler := errors.NewApiHandler(obs, log)
 
@@ -125,15 +119,13 @@ func (s *AuthHandlerApiTestSuite) SetupSuite() {
 	s.password = "password123"
 
 	// Seed ROLE_ADMIN
-	_, _ = pool.Exec(context.Background(), "INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN')")
+	err = gormDB.WithContext(context.Background()).Exec("INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN') ON CONFLICT (role_name) DO NOTHING").Error
+	s.Require().NoError(err)
 }
 
 func (s *AuthHandlerApiTestSuite) TearDownSuite() {
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }
@@ -155,7 +147,7 @@ func (s *AuthHandlerApiTestSuite) Test1_Register() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusCreated, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	data := res["data"].(map[string]interface{})
@@ -180,10 +172,10 @@ func (s *AuthHandlerApiTestSuite) Test2_Login() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
-	
+
 	data := res["data"].(map[string]interface{})
 	s.accessToken = data["access_token"].(string)
 }
@@ -241,7 +233,7 @@ func (s *AuthHandlerApiTestSuite) Test3_GetMe() {
 	s.server.ServeHTTP(rec, req)
 
 	s.Equal(http.StatusOK, rec.Code)
-	
+
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	data := res["data"].(map[string]interface{})

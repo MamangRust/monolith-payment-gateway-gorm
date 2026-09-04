@@ -25,7 +25,6 @@ type MerchantStatsByMerchantMethodDeps struct {
 	Observability observability.TraceLoggerObservability
 }
 
-
 type merchantStatsByMerchantMethodService struct {
 	cache mencache.MerchantStatsMethodByMerchantCache
 

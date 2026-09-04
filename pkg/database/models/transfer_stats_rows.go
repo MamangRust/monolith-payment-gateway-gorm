@@ -10,8 +10,8 @@ type TransferMonthlyAmountRow struct {
 
 // TransferYearlyAmountRow - yearly transfer amount stats
 type TransferYearlyAmountRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalTransferAmount int64       `gorm:"column:total_transfer_amount" json:"total_transfer_amount"`
+	Year                string `gorm:"column:year" json:"year"`
+	TotalTransferAmount int64  `gorm:"column:total_transfer_amount" json:"total_transfer_amount"`
 }
 
 // TransferMonthlyStatusSuccessRow - monthly status success stats

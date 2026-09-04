@@ -3,25 +3,25 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CardEventLogHandler stores card domain events durably for audit and replay.
 type CardEventLogHandler struct {
-	db     *db.Queries
+	db     *gorm.DB
 	logger logger.LoggerInterface
 }
 
-func NewCardEventLogHandler(db *db.Queries, logger logger.LoggerInterface) *CardEventLogHandler {
+func NewCardEventLogHandler(db *gorm.DB, logger logger.LoggerInterface) *CardEventLogHandler {
 	return &CardEventLogHandler{db: db, logger: logger}
 }
 
@@ -49,15 +49,16 @@ func (h *CardEventLogHandler) ConsumeClaim(session sarama.ConsumerGroupSession, 
 			return fmt.Errorf("card event audit database is nil")
 		}
 		insertCtx, cancel := context.WithTimeout(session.Context(), 10*time.Second)
-		_, err = h.db.InsertCardEventLog(insertCtx, db.InsertCardEventLogParams{
+		err = h.db.WithContext(insertCtx).Clauses(clause.OnConflict{DoNothing: true}).Create(&models.CardEventLog{
 			Topic:       event.Topic,
 			EventType:   event.EventType,
-			CardNumber:  event.CardNumber,
-			ReferenceID: event.ReferenceID,
+			CardNumber:  nullableString(event.CardNumber),
+			ReferenceID: nullableString(event.ReferenceID),
 			Payload:     event.Payload,
-		})
+			ReceivedAt:  time.Now(),
+		}).Error
 		cancel()
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			// Do not acknowledge database failures. Sarama will redeliver the
 			// message and ON CONFLICT keeps successful redeliveries idempotent.
 			return fmt.Errorf("insert card event log: %w", err)
@@ -65,6 +66,13 @@ func (h *CardEventLogHandler) ConsumeClaim(session sarama.ConsumerGroupSession, 
 		session.MarkMessage(msg, "")
 	}
 	return nil
+}
+
+func nullableString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 type cardEvent struct {

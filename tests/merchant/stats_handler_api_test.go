@@ -11,7 +11,7 @@ import (
 	"time"
 
 	merchant_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/merchant"
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/merchant/stats"
+	merchantstatshandler "github.com/MamangRust/monolith-payment-gateway-merchant/handler/stats"
 	stats_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/stats"
 	apikey_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/statsbyapikey"
 	merchant_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/statsbymerchant"
@@ -21,44 +21,38 @@ import (
 	stats_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/stats"
 	apikey_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/statsbyapikey"
 	merchant_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/statsbymerchant"
-	merchantstatshandler "github.com/MamangRust/monolith-payment-gateway-merchant/handler/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/merchant/stats"
 	logger_pkg "github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type MerchantStatsHandlerApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	lis         *bufconn.Listener
-	grpcServer  *grpc.Server
-	merchantID  int32
-	apiKey      string
-	testYear    int
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	lis        *bufconn.Listener
+	grpcServer *grpc.Server
+	merchantID int32
+	apiKey     string
+	testYear   int
 }
 
 func (s *MerchantStatsHandlerApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -68,7 +62,7 @@ func (s *MerchantStatsHandlerApiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	// Logger & Observability
 	logger_pkg.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -122,10 +116,10 @@ func (s *MerchantStatsHandlerApiTestSuite) SetupSuite() {
 		}
 	}()
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet", 
+	conn, err := grpc.DialContext(context.Background(), "bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 
@@ -146,13 +140,17 @@ func (s *MerchantStatsHandlerApiTestSuite) SetupSuite() {
 	// Seed Data
 	ctx := context.Background()
 	var userID int32
-	s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Api', 'Stats', 'api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Api', 'Stats', 'api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
+	s.Require().NoError(err)
 
 	s.apiKey = "api-key-stats"
-	s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Api Stats Merchant', $1, $2, 'active') RETURNING merchant_id", s.apiKey, userID).Scan(&s.merchantID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Api Stats Merchant', ?, ?, 'active') RETURNING merchant_id", s.apiKey, userID).Scan(&s.merchantID).Error
+	s.Require().NoError(err)
 
-	s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, '9999999999999999', 'debit', '123', 'visa', '2030-01-01')", userID)
-	s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ('9999999999999999', 3000, 'mastercard', $1, $2, 'success')", s.merchantID, time.Date(s.testYear, 2, 1, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, '9999999999999999', 'debit', '123', 'visa', '2030-01-01')", userID).Error
+	s.Require().NoError(err)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ('9999999999999999', 3000, 'mastercard', ?, ?, 'success')", s.merchantID, time.Date(s.testYear, 2, 1, 10, 0, 0, 0, time.UTC)).Error
+	s.Require().NoError(err)
 }
 
 func (s *MerchantStatsHandlerApiTestSuite) TearDownSuite() {
@@ -175,7 +173,7 @@ func (s *MerchantStatsHandlerApiTestSuite) TestAmountApi() {
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	s.Equal("success", res["status"])
-	
+
 	data := res["data"].([]interface{})
 	s.NotEmpty(data)
 	// Feb is index 1
@@ -193,10 +191,10 @@ func (s *MerchantStatsHandlerApiTestSuite) TestMethodApi() {
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	s.Equal("success", res["status"])
-	
+
 	data := res["data"].([]interface{})
 	s.NotEmpty(data)
-	
+
 	// Check for 'mastercard' in Feb
 	found := false
 	for _, d := range data {
@@ -218,7 +216,7 @@ func (s *MerchantStatsHandlerApiTestSuite) TestTotalAmountApi() {
 	var res map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	s.Equal("success", res["status"])
-	
+
 	data := res["data"].([]interface{})
 	s.NotEmpty(data)
 	febData := data[1].(map[string]interface{})

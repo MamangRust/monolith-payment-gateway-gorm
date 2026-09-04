@@ -57,11 +57,11 @@ type FindAllTransactionCardNumber struct {
 // CreateTransactionRequest represents the payload for creating a new transaction.
 // Used when recording payment transactions.
 type CreateTransactionRequest struct {
-	CardNumber      string    `json:"card_number" validate:"required,min=1"` // Card number used in transaction
-	Amount          int       `json:"amount" validate:"required,min=50000"`  // Transaction amount (minimum 50,000 in smallest unit)
-	PaymentMethod   string    `json:"payment_method" validate:"required"`    // Payment method used (e.g., "credit", "debit")
-	MerchantID      *int      `json:"merchant_id" validate:"required,min=1"` // ID of merchant receiving payment
-	TransactionTime time.Time `json:"transaction_time" validate:"required"`  // Timestamp of transaction
+	CardNumber      string    `json:"card_number" validate:"required,min=1"`       // Card number used in transaction
+	Amount          int       `json:"amount" validate:"required,min=50000"`        // Transaction amount (minimum 50,000 in smallest unit)
+	PaymentMethod   string    `json:"payment_method" validate:"required"`          // Payment method used (e.g., "credit", "debit")
+	MerchantID      *int      `json:"merchant_id" validate:"required,min=1"`       // ID of merchant receiving payment
+	TransactionTime time.Time `json:"transaction_time" validate:"required"`        // Timestamp of transaction
 	IdempotencyKey  string    `json:"idempotency_key" validate:"omitempty,max=64"` // Client-supplied key for safe retries (max 64 chars)
 }
 

@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // userSeeder is a struct that represents a seeder for the users table.
 type userSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	hash   hash.HashPassword
 	ctx    context.Context
 	logger logger.LoggerInterface
@@ -24,14 +26,14 @@ type userSeeder struct {
 // responsible for populating the users table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // hash: a hash.HashPassword object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the userSeeder struct
-func NewUserSeeder(db *db.Queries, ctx context.Context, hash hash.HashPassword, logger logger.LoggerInterface) *userSeeder {
+func NewUserSeeder(db *gorm.DB, ctx context.Context, hash hash.HashPassword, logger logger.LoggerInterface) *userSeeder {
 	return &userSeeder{
 		db:     db,
 		hash:   hash,
@@ -81,7 +83,7 @@ func (r *userSeeder) Seed() error {
 
 		isVerified := true
 
-		user := db.CreateUserParams{
+		user := &models.User{
 			Firstname:        fmt.Sprintf("User%d", i),
 			Lastname:         fmt.Sprintf("Last%d", i),
 			Email:            email,
@@ -90,31 +92,31 @@ func (r *userSeeder) Seed() error {
 			IsVerified:       &isVerified,
 		}
 
-		createdUser, err := r.db.CreateUser(r.ctx, user)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(user).Error; err != nil {
 			r.logger.Error("failed to create user", zap.Int("user", i), zap.Error(err))
 			return fmt.Errorf("failed to create user %d: %w", i, err)
 		}
 
 		randomRole := randomRoles[rand.Intn(len(randomRoles))]
-		role, err := r.db.GetRoleByName(r.ctx, randomRole)
-		if err != nil {
+		var role models.Role
+		if err := r.db.WithContext(r.ctx).Where("role_name = ?", randomRole).First(&role).Error; err != nil {
 			r.logger.Error("failed to get role", zap.String("role", randomRole), zap.Error(err))
 			return fmt.Errorf("failed to get role %s: %w", randomRole, err)
 		}
 
-		_, err = r.db.AssignRoleToUser(r.ctx, db.AssignRoleToUserParams{
+		if err := r.db.WithContext(r.ctx).Create(&models.UserRole{
 			RoleID: role.RoleID,
-			UserID: createdUser.UserID,
-		})
-		if err != nil {
-			r.logger.Error("failed to assign role to user", zap.Int("userID", int(createdUser.UserID)), zap.String("role", randomRole), zap.Error(err))
-			return fmt.Errorf("failed to assign role %s to user %d: %w", randomRole, createdUser.UserID, err)
+			UserID: user.UserID,
+		}).Error; err != nil {
+			r.logger.Error("failed to assign role to user", zap.Int("userID", int(user.UserID)), zap.String("role", randomRole), zap.Error(err))
+			return fmt.Errorf("failed to assign role %s to user %d: %w", randomRole, user.UserID, err)
 		}
 
 		if i > activeUsers {
-			_, err := r.db.TrashUser(r.ctx, createdUser.UserID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.User{}).
+				Where("user_id = ? AND deleted_at IS NULL", user.UserID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash user", zap.Int("user", i), zap.Error(err))
 				return fmt.Errorf("failed to trash user %d: %w", i, err)
 			}

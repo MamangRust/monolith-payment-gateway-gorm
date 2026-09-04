@@ -63,16 +63,16 @@ type MerchantListByUserRow struct {
 
 // MerchantDocumentListRow - paginated merchant document listing
 type MerchantDocumentListRow struct {
-	DocumentID   int32      `gorm:"column:document_id" json:"document_id"`
-	MerchantID   int32      `gorm:"column:merchant_id" json:"merchant_id"`
-	DocumentType string     `gorm:"column:document_type" json:"document_type"`
-	DocumentUrl  string     `gorm:"column:document_url" json:"document_url"`
-	Status       string     `gorm:"column:status" json:"status"`
-	Note         *string    `gorm:"column:note" json:"note"`
-	UploadedAt   time.Time  `gorm:"column:uploaded_at" json:"uploaded_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at" json:"updated_at"`
-	TotalCount   int64      `gorm:"column:total_count" json:"total_count"`
+	DocumentID   int32     `gorm:"column:document_id" json:"document_id"`
+	MerchantID   int32     `gorm:"column:merchant_id" json:"merchant_id"`
+	DocumentType string    `gorm:"column:document_type" json:"document_type"`
+	DocumentUrl  string    `gorm:"column:document_url" json:"document_url"`
+	Status       string    `gorm:"column:status" json:"status"`
+	Note         *string   `gorm:"column:note" json:"note"`
+	UploadedAt   time.Time `gorm:"column:uploaded_at" json:"uploaded_at"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
+	TotalCount   int64     `gorm:"column:total_count" json:"total_count"`
 }
 
 // MerchantDocumentListWithDeletedRow - merchant document listing with deleted_at
@@ -92,41 +92,41 @@ type MerchantDocumentListWithDeletedRow struct {
 
 // MerchantDocumentAllFieldsRow - merchant document with all fields
 type MerchantDocumentAllFieldsRow struct {
-	DocumentID   int32      `gorm:"column:document_id" json:"document_id"`
-	MerchantID   int32      `gorm:"column:merchant_id" json:"merchant_id"`
-	DocumentType string     `gorm:"column:document_type" json:"document_type"`
-	DocumentUrl  string     `gorm:"column:document_url" json:"document_url"`
-	Status       string     `gorm:"column:status" json:"status"`
-	Note         *string    `gorm:"column:note" json:"note"`
-	UploadedAt   time.Time  `gorm:"column:uploaded_at" json:"uploaded_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at" json:"updated_at"`
+	DocumentID   int32     `gorm:"column:document_id" json:"document_id"`
+	MerchantID   int32     `gorm:"column:merchant_id" json:"merchant_id"`
+	DocumentType string    `gorm:"column:document_type" json:"document_type"`
+	DocumentUrl  string    `gorm:"column:document_url" json:"document_url"`
+	Status       string    `gorm:"column:status" json:"status"`
+	Note         *string   `gorm:"column:note" json:"note"`
+	UploadedAt   time.Time `gorm:"column:uploaded_at" json:"uploaded_at"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 // MerchantDocumentCreateRow - created merchant document
 type MerchantDocumentCreateRow struct {
-	DocumentID   int32      `gorm:"column:document_id" json:"document_id"`
-	MerchantID   int32      `gorm:"column:merchant_id" json:"merchant_id"`
-	DocumentType string     `gorm:"column:document_type" json:"document_type"`
-	DocumentUrl  string     `gorm:"column:document_url" json:"document_url"`
-	Status       string     `gorm:"column:status" json:"status"`
-	Note         *string    `gorm:"column:note" json:"note"`
-	UploadedAt   time.Time  `gorm:"column:uploaded_at" json:"uploaded_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at" json:"updated_at"`
+	DocumentID   int32     `gorm:"column:document_id" json:"document_id"`
+	MerchantID   int32     `gorm:"column:merchant_id" json:"merchant_id"`
+	DocumentType string    `gorm:"column:document_type" json:"document_type"`
+	DocumentUrl  string    `gorm:"column:document_url" json:"document_url"`
+	Status       string    `gorm:"column:status" json:"status"`
+	Note         *string   `gorm:"column:note" json:"note"`
+	UploadedAt   time.Time `gorm:"column:uploaded_at" json:"uploaded_at"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 // MerchantDocumentUpdateRow - updated merchant document
 type MerchantDocumentUpdateRow struct {
-	DocumentID   int32      `gorm:"column:document_id" json:"document_id"`
-	MerchantID   int32      `gorm:"column:merchant_id" json:"merchant_id"`
-	DocumentType string     `gorm:"column:document_type" json:"document_type"`
-	DocumentUrl  string     `gorm:"column:document_url" json:"document_url"`
-	Status       string     `gorm:"column:status" json:"status"`
-	Note         *string    `gorm:"column:note" json:"note"`
-	UploadedAt   time.Time  `gorm:"column:uploaded_at" json:"uploaded_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at" json:"updated_at"`
+	DocumentID   int32     `gorm:"column:document_id" json:"document_id"`
+	MerchantID   int32     `gorm:"column:merchant_id" json:"merchant_id"`
+	DocumentType string    `gorm:"column:document_type" json:"document_type"`
+	DocumentUrl  string    `gorm:"column:document_url" json:"document_url"`
+	Status       string    `gorm:"column:status" json:"status"`
+	Note         *string   `gorm:"column:note" json:"note"`
+	UploadedAt   time.Time `gorm:"column:uploaded_at" json:"uploaded_at"`
+	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 // ---- Merchant Transaction rows ----

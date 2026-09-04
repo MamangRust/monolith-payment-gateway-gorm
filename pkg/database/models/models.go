@@ -85,17 +85,17 @@ func (Merchant) TableName() string { return "merchants" }
 
 // MerchantDocument maps to the "merchant_documents" table.
 type MerchantDocument struct {
-	DocumentID    int32          `gorm:"column:document_id;primaryKey;autoIncrement" json:"document_id"`
-	MerchantID    int32          `gorm:"column:merchant_id;not null" json:"merchant_id"`
-	DocumentType  string         `gorm:"column:document_type;size:50;not null" json:"document_type"`
-	DocumentUrl   string         `gorm:"column:document_url;type:text;not null" json:"document_url"`
-	Status        string         `gorm:"column:status;size:20;default:pending" json:"status"`
-	Note          *string        `gorm:"column:note;type:text" json:"note"`
-	UploadedAt    time.Time      `gorm:"column:uploaded_at;autoCreateTime" json:"uploaded_at"`
-	EventVersion  int64          `gorm:"column:event_version;default:0" json:"event_version"`
-	CreatedAt     time.Time      `gorm:"column:created_at;autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time      `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
+	DocumentID   int32          `gorm:"column:document_id;primaryKey;autoIncrement" json:"document_id"`
+	MerchantID   int32          `gorm:"column:merchant_id;not null" json:"merchant_id"`
+	DocumentType string         `gorm:"column:document_type;size:50;not null" json:"document_type"`
+	DocumentUrl  string         `gorm:"column:document_url;type:text;not null" json:"document_url"`
+	Status       string         `gorm:"column:status;size:20;default:pending" json:"status"`
+	Note         *string        `gorm:"column:note;type:text" json:"note"`
+	UploadedAt   time.Time      `gorm:"column:uploaded_at;autoCreateTime" json:"uploaded_at"`
+	EventVersion int64          `gorm:"column:event_version;default:0" json:"event_version"`
+	CreatedAt    time.Time      `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt    time.Time      `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"column:deleted_at;index" json:"deleted_at"`
 }
 
 func (MerchantDocument) TableName() string { return "merchant_documents" }
@@ -313,13 +313,13 @@ func (ConsumerInbox) TableName() string { return "consumer_inbox" }
 
 // CardEventLog maps to the "card_event_logs" table.
 type CardEventLog struct {
-	EventID    int64     `gorm:"column:event_id;primaryKey;autoIncrement" json:"event_id"`
-	Topic      string    `gorm:"column:topic;size:80;not null" json:"topic"`
-	EventType  string    `gorm:"column:event_type;size:80;not null" json:"event_type"`
-	CardNumber *string   `gorm:"column:card_number;size:16" json:"card_number"`
-	ReferenceID *string  `gorm:"column:reference_id;size:64" json:"reference_id"`
-	Payload    []byte    `gorm:"column:payload;type:jsonb;not null" json:"payload"`
-	ReceivedAt time.Time `gorm:"column:received_at;not null" json:"received_at"`
+	EventID     int64     `gorm:"column:event_id;primaryKey;autoIncrement" json:"event_id"`
+	Topic       string    `gorm:"column:topic;size:80;not null" json:"topic"`
+	EventType   string    `gorm:"column:event_type;size:80;not null" json:"event_type"`
+	CardNumber  *string   `gorm:"column:card_number;size:16" json:"card_number"`
+	ReferenceID *string   `gorm:"column:reference_id;size:64" json:"reference_id"`
+	Payload     []byte    `gorm:"column:payload;type:jsonb;not null" json:"payload"`
+	ReceivedAt  time.Time `gorm:"column:received_at;not null" json:"received_at"`
 }
 
 func (CardEventLog) TableName() string { return "card_event_logs" }

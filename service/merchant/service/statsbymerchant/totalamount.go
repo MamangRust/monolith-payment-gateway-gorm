@@ -35,7 +35,6 @@ type merchantStatsByMerchantTotalAmountService struct {
 	observability observability.TraceLoggerObservability
 }
 
-
 func NewMerchantStatsByMerchantTotalAmountService(params *MerchantStatsByMerchantTotalAmountDeps) *merchantStatsByMerchantTotalAmountService {
 	return &merchantStatsByMerchantTotalAmountService{
 		cache:         params.Cache,

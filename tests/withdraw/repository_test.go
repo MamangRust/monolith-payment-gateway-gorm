@@ -1,19 +1,19 @@
 package withdraw_test
 
 import (
-	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"context"
 	"fmt"
+	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"testing"
 	"time"
 
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -31,7 +31,6 @@ func (s *WithdrawRepositoryTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -58,16 +57,16 @@ func (s *WithdrawRepositoryTestSuite) TearDownSuite() {
 }
 
 func (s *WithdrawRepositoryTestSuite) createSeedWithdraw() (*models.WithdrawAllFieldsRow, error) {
-    card, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
+	card, err := s.cardRepo.CardCommand.CreateCard(context.Background(), &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),
 		CVV:          "123",
 		CardProvider: "Visa",
 	})
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
 	return s.repo.CreateWithdraw(context.Background(), &requests.CreateWithdrawRequest{
 		CardNumber:     card.CardNumber,
@@ -78,8 +77,8 @@ func (s *WithdrawRepositoryTestSuite) createSeedWithdraw() (*models.WithdrawAllF
 
 func (s *WithdrawRepositoryTestSuite) TestCreateWithdraw() {
 	ctx := context.Background()
-    
-    card, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
+
+	card, _ := s.cardRepo.CardCommand.CreateCard(ctx, &requests.CreateCardRequest{
 		UserID:       s.userID,
 		CardType:     "debit",
 		ExpireDate:   time.Now().AddDate(5, 0, 0),

@@ -12,44 +12,42 @@ import (
 	"time"
 
 	transferhandler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/transfer"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/transfer"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	app_errors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transfer/handler"
 	"github.com/MamangRust/monolith-payment-gateway-transfer/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transfer/service"
-	"github.com/jackc/pgx/v5/pgxpool"
+	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TransferHandlerTestSuite struct {
 	suite.Suite
 	ts            *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient *redis.Client
-	grpcServer  *grpc.Server
+	redisClient   *redis.Client
+	grpcServer    *grpc.Server
 	commandClient pb.TransferCommandServiceClient
 	queryClient   pb.TransferQueryServiceClient
-	conn        *grpc.ClientConn
-	router      *echo.Echo
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.Repositories
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	router        *echo.Echo
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.Repositories
+	saldoRepo     saldo_repo.Repositories
 
 	senderCardNumber   string
 	receiverCardNumber string
@@ -61,15 +59,11 @@ func (s *TransferHandlerTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	// Repositories for seeding
 	s.userRepo = user_repo.NewUserCommandRepository(gormDB)
 	s.cardRepo = *card_repo.NewRepositories(gormDB)
@@ -190,9 +184,6 @@ func (s *TransferHandlerTestSuite) TearDownSuite() {
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

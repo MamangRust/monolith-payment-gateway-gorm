@@ -43,7 +43,6 @@ func NewMerchantStatsAmountService(params *MerchantStatsAmountDeps) MerchantStat
 	}
 }
 
-
 func (s *merchantStatsAmountService) FindMonthlyAmountMerchant(ctx context.Context, year int) ([]*models.MerchantMonthlyAmountRow, error) {
 	const method = "FindMonthlyAmountMerchant"
 

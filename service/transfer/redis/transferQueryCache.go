@@ -11,17 +11,17 @@ import (
 
 type transferCacheResponseAll struct {
 	Data         []*models.TransferListRow `json:"data"`
-	TotalRecords *int                  `json:"total_records"`
+	TotalRecords *int                      `json:"total_records"`
 }
 
 type transferCacheResponseActive struct {
 	Data         []*models.TransferListRow `json:"data"`
-	TotalRecords *int                        `json:"total_records"`
+	TotalRecords *int                      `json:"total_records"`
 }
 
 type transferCacheResponseTrashed struct {
 	Data         []*models.TransferListWithDeletedRow `json:"data"`
-	TotalRecords *int                         `json:"total_records"`
+	TotalRecords *int                                 `json:"total_records"`
 }
 
 type transferQueryCache struct {

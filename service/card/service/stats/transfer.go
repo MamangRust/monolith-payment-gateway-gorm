@@ -1,12 +1,12 @@
 package cardstatsservice
 
 import (
-	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"context"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 
 	cardstatsmencache "github.com/MamangRust/monolith-payment-gateway-card/redis/stats"
 	repository "github.com/MamangRust/monolith-payment-gateway-card/repository/stats"
-	
+
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	sharederrorhandler "github.com/MamangRust/monolith-payment-gateway-shared/errorhandler"
 	card_errors "github.com/MamangRust/monolith-payment-gateway-shared/errors/card_errors/service"

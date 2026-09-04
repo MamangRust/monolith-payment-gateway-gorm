@@ -2,18 +2,20 @@ package seeder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // transferSeeder is a struct that represents a seeder for the transfers table.
 type transferSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -22,13 +24,13 @@ type transferSeeder struct {
 // responsible for populating the transfers table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the transferSeeder struct
-func NewTransferSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *transferSeeder {
+func NewTransferSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *transferSeeder {
 	return &transferSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -53,16 +55,17 @@ func (r *transferSeeder) Seed() error {
 	active := 5
 	trashed := total - active
 
-	var cards []db.GetCardByUserIDRow
+	var cards []models.Card
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		var card models.Card
+		err := r.db.WithContext(r.ctx).Where("user_id = ?", int32(i)).First(&card).Error
 		if err != nil {
-			r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
+			}
 			continue
 		}
-		if card != nil {
-			cards = append(cards, *card)
-		}
+		cards = append(cards, card)
 	}
 
 	if len(cards) < 2 {
@@ -93,7 +96,7 @@ func (r *transferSeeder) Seed() error {
 		monthIndex := i % 12
 		transferTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
-		req := db.CreateTransferParams{
+		transfer := &models.Transfer{
 			TransferFrom:   transferFrom,
 			TransferTo:     transferTo,
 			TransferAmount: amount,
@@ -101,15 +104,16 @@ func (r *transferSeeder) Seed() error {
 			Status:         status,
 		}
 
-		transfer, err := r.db.CreateTransfer(r.ctx, req)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(transfer).Error; err != nil {
 			r.logger.Error("failed to seed transfer", zap.Int("transfer", i+1), zap.Error(err))
 			return fmt.Errorf("failed to seed transfer %d: %w", i+1, err)
 		}
 
 		if i >= active {
-			_, err = r.db.TrashTransfer(r.ctx, transfer.TransferID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Transfer{}).
+				Where("transfer_id = ? AND deleted_at IS NULL", transfer.TransferID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash transfer", zap.Int("transfer", i+1), zap.Error(err))
 				return fmt.Errorf("failed to trash transfer %d: %w", i+1, err)
 			}

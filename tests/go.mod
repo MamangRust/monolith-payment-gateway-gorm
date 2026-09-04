@@ -17,8 +17,8 @@ require (
 	github.com/MamangRust/monolith-payment-gateway-transfer v1.0.0
 	github.com/MamangRust/monolith-payment-gateway-user v1.0.0
 	github.com/MamangRust/monolith-payment-gateway-withdraw v1.0.0
-	github.com/jackc/pgx/v5 v5.10.0
 	github.com/labstack/echo/v4 v4.15.0
+	github.com/lib/pq v1.10.9
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/stretchr/testify v1.11.1
@@ -34,6 +34,7 @@ require (
 )
 
 require (
+	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.15.0 // indirect

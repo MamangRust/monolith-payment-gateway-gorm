@@ -37,17 +37,17 @@ type TransferListWithDeletedRow struct {
 
 // TransferAllFieldsRow - transfer with all fields
 type TransferAllFieldsRow struct {
-	TransferID     int32     `gorm:"column:transfer_id" json:"transfer_id"`
-	TransferNo     uuid.UUID `gorm:"column:transfer_no" json:"transfer_no"`
-	TransferFrom   string    `gorm:"column:transfer_from" json:"transfer_from"`
-	TransferTo     string    `gorm:"column:transfer_to" json:"transfer_to"`
-	TransferAmount int32     `gorm:"column:transfer_amount" json:"transfer_amount"`
-	TransferTime   time.Time `gorm:"column:transfer_time" json:"transfer_time"`
-	Status         string    `gorm:"column:status" json:"status"`
-	TransferID2    int32     `gorm:"column:transfer_id_2" json:"transfer_id_2"`
-	MerchantCardNumber string `gorm:"column:merchant_card_number" json:"merchant_card_number"`
-	CreatedAt      time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt      time.Time `gorm:"column:updated_at" json:"updated_at"`
+	TransferID         int32     `gorm:"column:transfer_id" json:"transfer_id"`
+	TransferNo         uuid.UUID `gorm:"column:transfer_no" json:"transfer_no"`
+	TransferFrom       string    `gorm:"column:transfer_from" json:"transfer_from"`
+	TransferTo         string    `gorm:"column:transfer_to" json:"transfer_to"`
+	TransferAmount     int32     `gorm:"column:transfer_amount" json:"transfer_amount"`
+	TransferTime       time.Time `gorm:"column:transfer_time" json:"transfer_time"`
+	Status             string    `gorm:"column:status" json:"status"`
+	TransferID2        int32     `gorm:"column:transfer_id_2" json:"transfer_id_2"`
+	MerchantCardNumber string    `gorm:"column:merchant_card_number" json:"merchant_card_number"`
+	CreatedAt          time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 // TransferTrashRestoreRow - transfer with deleted_at for trash/restore

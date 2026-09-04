@@ -11,22 +11,22 @@ import (
 
 type transactionCachedResponseAll struct {
 	Data         []*models.TransactionListRow `json:"data"`
-	TotalRecords *int                     `json:"total_records"`
+	TotalRecords *int                         `json:"total_records"`
 }
 
 type transactionCachedResponseByCard struct {
 	Data         []*models.TransactionListRow `json:"data"`
-	TotalRecords *int                                 `json:"total_records"`
+	TotalRecords *int                         `json:"total_records"`
 }
 
 type transactionCachedResponseActive struct {
 	Data         []*models.TransactionListRow `json:"data"`
-	TotalRecords *int                           `json:"total_records"`
+	TotalRecords *int                         `json:"total_records"`
 }
 
 type transactionCachedResponseTrashed struct {
 	Data         []*models.TransactionListWithDeletedRow `json:"data"`
-	TotalRecords *int                            `json:"total_records"`
+	TotalRecords *int                                    `json:"total_records"`
 }
 
 type transactionQueryCache struct {

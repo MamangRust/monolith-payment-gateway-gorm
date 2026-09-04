@@ -6,19 +6,17 @@ import (
 	"time"
 
 	"github.com/MamangRust/monolith-payment-gateway-auth/repository"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
 )
 
 type AuthRepositoryTestSuite struct {
 	suite.Suite
 	ts     *tests.TestSuite
-	dbPool *pgxpool.Pool
 	repo   *repository.Repositories
 	userID int
 	email  string
@@ -29,10 +27,6 @@ func (s *AuthRepositoryTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
@@ -42,7 +36,6 @@ func (s *AuthRepositoryTestSuite) SetupSuite() {
 }
 
 func (s *AuthRepositoryTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 
@@ -91,7 +84,7 @@ func (s *AuthRepositoryTestSuite) Test4_RefreshToken() {
 
 	token := "test-refresh-token"
 	expiresAt := time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
-	
+
 	req := &requests.CreateRefreshToken{
 		UserId:    s.userID,
 		Token:     token,

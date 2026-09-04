@@ -82,5 +82,3 @@ type WithdrawByCardNumberRow struct {
 	UpdatedAt      time.Time `gorm:"column:updated_at" json:"updated_at"`
 	TotalCount     int64     `gorm:"column:total_count" json:"total_count"`
 }
-
-

@@ -11,24 +11,23 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/card"
 	pbstats "github.com/MamangRust/monolith-payment-gateway-pb/card/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type CardStatsGapiTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
+	gormDB      *gorm.DB
 	cardH       handler.Handler
 	cardNumber1 string
 	cardNumber2 string
@@ -49,10 +48,6 @@ func (s *CardStatsGapiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
 	redisClient := redis.NewClient(opts)
@@ -61,6 +56,7 @@ func (s *CardStatsGapiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
+	s.gormDB = gormDB
 	repos := repository.NewRepositories(gormDB)
 
 	logger.ResetInstance()
@@ -113,11 +109,13 @@ func (s *CardStatsGapiTestSuite) SetupSuite() {
 	s.cardNumber2 = "7777888899990000"
 
 	var userID int32
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Gapi', 'Stats', 'gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err = s.gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Gapi', 'Stats', 'gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
 	s.Require().NoError(err)
 
-	s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", userID, s.cardNumber1)
-	s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'credit', '456', 'mastercard', '2030-01-01')", userID, s.cardNumber2)
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", userID, s.cardNumber1).Error
+	s.Require().NoError(err)
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'credit', '456', 'mastercard', '2030-01-01')", userID, s.cardNumber2).Error
+	s.Require().NoError(err)
 
 	s.seedHistoricalData()
 }
@@ -142,20 +140,25 @@ func (s *CardStatsGapiTestSuite) seedHistoricalData() {
 func (s *CardStatsGapiTestSuite) insertSaldo(cardNumber string, amount int, t time.Time) {
 	// Saldo keeps a single active snapshot per card (idx_saldos_card_number_active);
 	// superseded snapshots are soft-deleted so the stats history still counts them.
-	s.dbPool.Exec(context.Background(), "UPDATE saldos SET deleted_at = current_timestamp WHERE card_number = $1 AND deleted_at IS NULL", cardNumber)
-	s.dbPool.Exec(context.Background(), "INSERT INTO saldos (card_number, total_balance, created_at, updated_at) VALUES ($1, $2, $3, $3)", cardNumber, amount, t)
+	err := s.gormDB.WithContext(context.Background()).Exec("UPDATE saldos SET deleted_at = current_timestamp WHERE card_number = ? AND deleted_at IS NULL", cardNumber).Error
+	s.Require().NoError(err)
+	err = s.gormDB.WithContext(context.Background()).Exec("INSERT INTO saldos (card_number, total_balance, created_at, updated_at) VALUES (?, ?, ?, ?)", cardNumber, amount, t, t).Error
+	s.Require().NoError(err)
 }
 
 func (s *CardStatsGapiTestSuite) insertTopup(cardNumber string, amount int, t time.Time) {
-	s.dbPool.Exec(context.Background(), "INSERT INTO topups (card_number, topup_amount, topup_time, topup_method, status) VALUES ($1, $2, $3, 'pb', 'success')", cardNumber, amount, t)
+	err := s.gormDB.WithContext(context.Background()).Exec("INSERT INTO topups (card_number, topup_amount, topup_time, topup_method, status) VALUES (?, ?, ?, 'pb', 'success')", cardNumber, amount, t).Error
+	s.Require().NoError(err)
 }
 
 func (s *CardStatsGapiTestSuite) insertWithdraw(cardNumber string, amount int, t time.Time) {
-	s.dbPool.Exec(context.Background(), "INSERT INTO withdraws (card_number, withdraw_amount, withdraw_time, status) VALUES ($1, $2, $3, 'success')", cardNumber, amount, t)
+	err := s.gormDB.WithContext(context.Background()).Exec("INSERT INTO withdraws (card_number, withdraw_amount, withdraw_time, status) VALUES (?, ?, ?, 'success')", cardNumber, amount, t).Error
+	s.Require().NoError(err)
 }
 
 func (s *CardStatsGapiTestSuite) insertTransfer(from, to string, amount int, t time.Time) {
-	s.dbPool.Exec(context.Background(), "INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES ($1, $2, $3, $4, 'success')", from, to, amount, t)
+	err := s.gormDB.WithContext(context.Background()).Exec("INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES (?, ?, ?, ?, 'success')", from, to, amount, t).Error
+	s.Require().NoError(err)
 }
 
 func (s *CardStatsGapiTestSuite) TearDownSuite() {
@@ -164,9 +167,6 @@ func (s *CardStatsGapiTestSuite) TearDownSuite() {
 	}
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

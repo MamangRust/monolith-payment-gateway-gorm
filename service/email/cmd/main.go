@@ -87,13 +87,12 @@ func main() {
 		logger,
 	)
 
-	dbPool, err := database.NewClient(logger)
+	gormDB, err := database.NewGormClient(logger)
 	if err != nil {
 		logger.Fatal("Failed to connect to database for consumer inbox", zap.Error(err))
 	}
-	defer dbPool.Close()
 
-	inbox, err := outbox.NewPostgresInbox(dbPool)
+	inbox, err := outbox.NewPostgresInbox(gormDB)
 	if err != nil {
 		logger.Fatal("Failed to initialize consumer inbox", zap.Error(err))
 	}

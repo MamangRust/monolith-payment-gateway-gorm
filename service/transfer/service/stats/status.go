@@ -44,7 +44,6 @@ func NewTransferStatsStatusService(params *TransferStatsStatusDeps) TransferStat
 	}
 }
 
-
 func (s *transferStatsStatusService) FindMonthTransferStatusSuccess(ctx context.Context, req *requests.MonthStatusTransfer) ([]*models.TransferMonthlyStatusSuccessRow, error) {
 	const method = "FindMonthTransferStatusSuccess"
 

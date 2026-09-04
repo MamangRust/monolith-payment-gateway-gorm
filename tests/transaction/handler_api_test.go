@@ -18,8 +18,6 @@ import (
 	merchant_repo "github.com/MamangRust/monolith-payment-gateway-merchant/repository"
 	pb_merchant "github.com/MamangRust/monolith-payment-gateway-pb/merchant"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/transaction"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
@@ -31,19 +29,19 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-transaction/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/service"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TransactionHandlerTestSuite struct {
 	suite.Suite
 	ts             *tests.TestSuite
-	dbPool         *pgxpool.Pool
 	redisClient    *redis.Client
 	grpcServer     *grpc.Server
 	commandClient  pb.TransactionCommandServiceClient
@@ -69,10 +67,6 @@ func (s *TransactionHandlerTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -224,9 +218,6 @@ func (s *TransactionHandlerTestSuite) TearDownSuite() {
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

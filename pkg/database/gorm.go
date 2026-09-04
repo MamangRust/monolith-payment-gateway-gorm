@@ -12,13 +12,11 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// NewGormClient creates a new *gorm.DB connection using the same viper DB_*
-// configuration that the existing pgxpool client uses. The returned *gorm.DB
-// is intended to live alongside the legacy pgxpool.Pool during the strangler
-// migration and will be removed once all services have moved to GORM.
+// NewGormClient creates a new *gorm.DB connection using the viper DB_*
+// configuration.
 func NewGormClient(logger logger.LoggerInterface) (*gorm.DB, error) {
 	dbDriver := viper.GetString("DB_DRIVER")
-	if dbDriver != "postgres" && dbDriver != "pgx" && dbDriver != "" {
+	if dbDriver != "postgres" && dbDriver != "" {
 		logger.Error("GORM postgres driver only supports PostgreSQL", zap.String("DB_DRIVER", dbDriver))
 		return nil, fmt.Errorf("gorm postgres driver only supports PostgreSQL, got: %s", dbDriver)
 	}

@@ -64,14 +64,14 @@ func setupTransactionQueryHandler(deps *DepsTransaction, mapper apimapper.Transa
 func setupTransactionCommandHandler(deps *DepsTransaction, cache mencache.MerchantCache, mapper apimapper.TransactionCommandResponseMapper, cache_ transaction_cache.TransactionMencache) func() {
 	return func() {
 		NewTransactionCommandHandleApi(&transactionCommandHandleDeps{
-			kafka:      deps.Kafka,
-			client:     pb.NewTransactionCommandServiceClient(deps.Client),
-			router:     deps.E,
-			logger:     deps.Logger,
-			mapper:     mapper,
+			kafka:             deps.Kafka,
+			client:            pb.NewTransactionCommandServiceClient(deps.Client),
+			router:            deps.E,
+			logger:            deps.Logger,
+			mapper:            mapper,
 			cache:             cache,
 			cache_transaction: cache_,
-			apiHandler: deps.ApiHandler,
+			apiHandler:        deps.ApiHandler,
 		})
 	}
 }

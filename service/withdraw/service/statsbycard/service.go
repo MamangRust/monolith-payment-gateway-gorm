@@ -43,4 +43,3 @@ func NewWithdrawStatsByCardService(deps *DepsStatsByCard) WithdrawStatsByCardSer
 		}),
 	}
 }
-

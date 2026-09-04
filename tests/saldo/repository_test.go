@@ -1,20 +1,20 @@
 package saldo_test
 
 import (
-	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"context"
 	"fmt"
+	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"sync"
 	"testing"
 	"time"
 
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	"github.com/stretchr/testify/suite"
 )

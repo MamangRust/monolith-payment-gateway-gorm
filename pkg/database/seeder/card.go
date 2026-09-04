@@ -3,25 +3,26 @@ package seeder
 import (
 	"context"
 	"fmt"
+	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/date"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/randomvcc"
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // cardSeeder is a struct that represents a seeder for the cards table.
 type cardSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
 
 // NewCardSeeder creates a new instance of the cardSeeder, which is
 // responsible for populating the cards table with fake data.
-func NewCardSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *cardSeeder {
+func NewCardSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *cardSeeder {
 	return &cardSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -55,29 +56,25 @@ func (r *cardSeeder) Seed() error {
 	}
 
 	for i := 0; i < totalCards; i++ {
-		expireDate := pgtype.Date{
-			Time:  date.GenerateExpireDate(),
-			Valid: true,
-		}
-
-		request := db.CreateCardParams{
+		card := &models.Card{
 			UserID:       int32(i + 1),
 			CardNumber:   cardNumbers[i],
 			CardType:     cardTypes[i%len(cardTypes)],
-			ExpireDate:   expireDate,
+			ExpireDate:   date.GenerateExpireDate(),
 			Cvv:          fmt.Sprintf("%03d", i%1000),
 			CardProvider: cardProviders[i%len(cardProviders)],
 		}
 
-		card, err := r.db.CreateCard(r.ctx, request)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(card).Error; err != nil {
 			r.logger.Error("failed to seed card", zap.Int("card", i+1), zap.Error(err))
 			return fmt.Errorf("failed to seed card %d: %w", i+1, err)
 		}
 
 		if i >= activeCards {
-			_, err = r.db.TrashCard(r.ctx, card.CardID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Card{}).
+				Where("card_id = ? AND deleted_at IS NULL", card.CardID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash card", zap.Int("card", i+1), zap.Error(err))
 				return fmt.Errorf("failed to trash card %d: %w", i+1, err)
 			}

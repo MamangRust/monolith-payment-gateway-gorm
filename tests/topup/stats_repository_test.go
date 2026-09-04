@@ -5,36 +5,30 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	stats_repo "github.com/MamangRust/monolith-payment-gateway-topup/repository/stats"
 	statsbycard_repo "github.com/MamangRust/monolith-payment-gateway-topup/repository/statsbycard"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TopupStatsRepositoryTestSuite struct {
 	suite.Suite
-	ts           *tests.TestSuite
-	dbPool       *pgxpool.Pool
-	repo         stats_repo.TopupStatsRepository
-	statsbycard  statsbycard_repo.TopupStatsByCardRepository
-	userID       int32
-	cardNumber1  string
-	cardNumber2  string
-	testYear     int
+	ts          *tests.TestSuite
+	repo        stats_repo.TopupStatsRepository
+	statsbycard statsbycard_repo.TopupStatsByCardRepository
+	userID      int32
+	cardNumber1 string
+	cardNumber2 string
+	testYear    int
 }
 
 func (s *TopupStatsRepositoryTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -47,45 +41,42 @@ func (s *TopupStatsRepositoryTestSuite) SetupSuite() {
 
 	// Seed Data
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Topup', 'Stats', 'topup_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Topup', 'Stats', 'topup_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber1 = "1111222233334444"
 	s.cardNumber2 = "5555666677778888"
 
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber1)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber1).Error
 	s.Require().NoError(err)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'mastercard', '2030-01-01')", s.userID, s.cardNumber2)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'mastercard', '2030-01-01')", s.userID, s.cardNumber2).Error
 	s.Require().NoError(err)
 
 	// Seed Topups for trailing 12 months and 5 years
 	now := time.Now().UTC()
-	
+
 	// Topups in current month
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber1, 500, "bank_transfer", now.AddDate(0, 0, -1))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber1, 500, "bank_transfer", now.AddDate(0, 0, -1)).Error
 	s.Require().NoError(err)
-	
+
 	// Topups last month
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber1, 300, "e-wallet", now.AddDate(0, -1, -5))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber1, 300, "e-wallet", now.AddDate(0, -1, -5)).Error
 	s.Require().NoError(err)
-	
+
 	// Topups 13 months ago (should not show in trailing 12)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber1, 1000, "bank_transfer", now.AddDate(0, -13, 0))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber1, 1000, "bank_transfer", now.AddDate(0, -13, 0)).Error
 	s.Require().NoError(err)
 
 	// Topups for yearly stats (5 years rolling)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber2, 1000, "bank_transfer", now)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber2, 1000, "bank_transfer", now).Error
 	s.Require().NoError(err)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber2, 2000, "bank_transfer", now.AddDate(-1, 0, 0))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber2, 2000, "bank_transfer", now.AddDate(-1, 0, 0)).Error
 	s.Require().NoError(err)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber2, 3000, "bank_transfer", now.AddDate(-6, 0, 0)) // Should not show in 5 years
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber2, 3000, "bank_transfer", now.AddDate(-6, 0, 0)).Error // Should not show in 5 years
 	s.Require().NoError(err)
 }
 
 func (s *TopupStatsRepositoryTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	s.ts.Teardown()
 }
 
@@ -97,19 +88,16 @@ func (s *TopupStatsRepositoryTestSuite) TestGlobalStats() {
 	s.NoError(err)
 	s.NotEmpty(res)
 
-
 	// Yearly Amount
 	yearlyRes, err := s.repo.GetYearlyTopupAmounts(ctx, s.testYear)
 	s.NoError(err)
 	s.NotEmpty(yearlyRes)
-
 
 	// Monthly Methods (Trailing 12 months)
 	methRes, err := s.repo.GetMonthlyTopupMethods(ctx, s.testYear)
 	s.NoError(err)
 	s.NotEmpty(methRes)
 
- 
 	// Status Stats
 	// Global Monthly
 	reqMonth := &requests.MonthTopupStatus{Year: s.testYear, Month: 1}
@@ -123,10 +111,9 @@ func (s *TopupStatsRepositoryTestSuite) TestGlobalStats() {
 
 }
 
- 
 func (s *TopupStatsRepositoryTestSuite) TestCardStats() {
 	ctx := context.Background()
- 
+
 	reqMethod := &requests.YearMonthMethod{
 		CardNumber: s.cardNumber1,
 		Year:       s.testYear,
@@ -137,13 +124,11 @@ func (s *TopupStatsRepositoryTestSuite) TestCardStats() {
 	s.NoError(err)
 	s.NotEmpty(res1)
 
- 
 	// Card 1 Monthly Methods
 	methRes1, err := s.statsbycard.GetMonthlyTopupMethodsByCardNumber(ctx, reqMethod)
 	s.NoError(err)
 	s.NotEmpty(methRes1)
 
- 
 	// Card 1 Status success
 	now := time.Now().UTC()
 	reqStatus := &requests.MonthTopupStatusCardNumber{
@@ -156,7 +141,6 @@ func (s *TopupStatsRepositoryTestSuite) TestCardStats() {
 	s.NotEmpty(statusRes1)
 
 }
-
 
 func TestTopupStatsRepositorySuite(t *testing.T) {
 	if testing.Short() {

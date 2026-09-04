@@ -18,8 +18,6 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-merchant/service"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/merchant"
 	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
@@ -29,19 +27,19 @@ import (
 	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
 	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	redis_client "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type MerchantApiTestSuite struct {
 	suite.Suite
 	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
 	echo       *echo.Echo
 	grpcServer *grpc.Server
 	lis        *bufconn.Listener
@@ -54,10 +52,6 @@ func (s *MerchantApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis_client.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -153,9 +147,6 @@ func (s *MerchantApiTestSuite) SetupSuite() {
 func (s *MerchantApiTestSuite) TearDownSuite() {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

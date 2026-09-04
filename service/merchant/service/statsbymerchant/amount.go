@@ -35,7 +35,6 @@ type merchantStatsByMerchantAmountService struct {
 	observability observability.TraceLoggerObservability
 }
 
-
 func NewMerchantStatsByMerchantAmountService(params *MerchantStatsByMerchantAmountServiceDeps) MerchantStatsByMerchantAmountService {
 
 	return &merchantStatsByMerchantAmountService{
@@ -45,7 +44,6 @@ func NewMerchantStatsByMerchantAmountService(params *MerchantStatsByMerchantAmou
 		observability: params.Observability,
 	}
 }
-
 
 func (s *merchantStatsByMerchantAmountService) FindMonthlyAmountByMerchants(ctx context.Context, req *requests.MonthYearAmountMerchant) ([]*models.MerchantMonthlyAmountRow, error) {
 	const method = "FindMonthlyAmountByMerchants"

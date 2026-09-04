@@ -1,8 +1,8 @@
 package handlerstats
 
 import (
-	"fmt"
 	"context"
+	"fmt"
 
 	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/card/stats"

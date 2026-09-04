@@ -6,23 +6,22 @@ import (
 	"testing"
 	"time"
 
+	card_repo_impl "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	saldo_repo_impl "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	user_repo_impl "github.com/MamangRust/monolith-payment-gateway-user/repository"
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/service"
-	user_repo_impl "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	card_repo_impl "github.com/MamangRust/monolith-payment-gateway-card/repository"
-	saldo_repo_impl "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type testCardRepo struct {
@@ -102,7 +101,6 @@ type WithdrawServiceTestSuite struct {
 	suite.Suite
 	ts              *tests.TestSuite
 	withdrawService service.Service
-	dbPool          *pgxpool.Pool
 	gormDB          *gorm.DB
 	withdrawID      int
 	cardNumber      string
@@ -113,10 +111,6 @@ func (s *WithdrawServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -178,7 +172,6 @@ func (s *WithdrawServiceTestSuite) SetupSuite() {
 }
 
 func (s *WithdrawServiceTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 

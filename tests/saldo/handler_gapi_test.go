@@ -6,37 +6,35 @@ import (
 	"testing"
 	"time"
 
-	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
-	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
-	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	card_handler "github.com/MamangRust/monolith-payment-gateway-card/handler"
 	card_repository "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	card_service "github.com/MamangRust/monolith-payment-gateway-card/service"
+	pbcard "github.com/MamangRust/monolith-payment-gateway-pb/card"
+	pbsaldo "github.com/MamangRust/monolith-payment-gateway-pb/saldo"
+	pbuser "github.com/MamangRust/monolith-payment-gateway-pb/user"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/handler"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-saldo/service"
-	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
-	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
+	user_handler "github.com/MamangRust/monolith-payment-gateway-user/handler"
+	user_repository "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	user_service "github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type SaldoGapiTestSuite struct {
 	suite.Suite
 	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
 	saldoH     handler.Handler
 	cardH      card_handler.Handler
 	userH      user_handler.Handler
@@ -50,10 +48,6 @@ func (s *SaldoGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -124,9 +118,6 @@ func (s *SaldoGapiTestSuite) SetupSuite() {
 }
 
 func (s *SaldoGapiTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}
@@ -176,7 +167,7 @@ func (s *SaldoGapiTestSuite) Test2_QueryOperations() {
 	resAc, err := s.saldoH.FindByActive(ctx, allReq)
 	s.NoError(err)
 	s.GreaterOrEqual(resAc.PaginationMeta.TotalRecords, int32(1))
-	
+
 	// FindByCardNumber
 	resC, err := s.saldoH.FindByCardNumber(ctx, &pbcard.FindByCardNumberRequest{CardNumber: s.cardNumber})
 	s.NoError(err)

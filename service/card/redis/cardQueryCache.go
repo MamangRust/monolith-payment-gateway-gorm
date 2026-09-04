@@ -11,7 +11,7 @@ import (
 
 type cardCachedResponse struct {
 	Data         []*models.CardListRow `json:"data"`
-	TotalRecords *int              `json:"total_records"`
+	TotalRecords *int                  `json:"total_records"`
 }
 
 type cardCachedResponseActive struct {
@@ -21,7 +21,7 @@ type cardCachedResponseActive struct {
 
 type cardCachedResponseTrashed struct {
 	Data         []*models.CardListWithDeletedRow `json:"data"`
-	TotalRecords *int                              `json:"total_records"`
+	TotalRecords *int                             `json:"total_records"`
 }
 
 type cardQueryCache struct {

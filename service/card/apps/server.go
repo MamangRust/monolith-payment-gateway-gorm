@@ -12,7 +12,6 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/card"
 	stats "github.com/MamangRust/monolith-payment-gateway-pb/card/stats"
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/kafka"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/outbox"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/server"
@@ -29,7 +28,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	mykafka := kafka.NewKafka(srv.Logger, []string{viper.GetString("KAFKA_BROKERS")})
 	srv.AddCleanupHook(mykafka.Close)
 
-	relay, relayErr := outbox.NewRelay(srv.DBPool, mykafka, outbox.RelayConfig{})
+	relay, relayErr := outbox.NewRelay(srv.GormDB, mykafka, outbox.RelayConfig{})
 	if relayErr != nil {
 		srv.Cleanup()
 		return nil, fmt.Errorf("initialize card outbox relay: %w", relayErr)
@@ -74,7 +73,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	}()
 
 	// Persist card domain events for a durable, queryable audit trail.
-	cardEventLogConsumer := cardkafka.NewCardEventLogHandler(db.New(srv.DBPool), srv.Logger)
+	cardEventLogConsumer := cardkafka.NewCardEventLogHandler(srv.GormDB, srv.Logger)
 	go func() {
 		srv.Logger.Info("starting card event log consumer")
 		if _, err := mykafka.StartConsumersWithContext(srv.Ctx, []string{

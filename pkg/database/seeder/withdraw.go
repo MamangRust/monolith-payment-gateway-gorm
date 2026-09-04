@@ -2,18 +2,20 @@ package seeder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // withdrawSeeder is a struct that represents a seeder for the withdraws table.
 type withdrawSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -22,13 +24,13 @@ type withdrawSeeder struct {
 // responsible for populating the withdraws table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the withdrawSeeder struct
-func NewWithdrawSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *withdrawSeeder {
+func NewWithdrawSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *withdrawSeeder {
 	return &withdrawSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -53,16 +55,17 @@ func (r *withdrawSeeder) Seed() error {
 	active := 5
 	trashed := total - active
 
-	var cards []db.GetCardByUserIDRow
+	var cards []models.Card
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		var card models.Card
+		err := r.db.WithContext(r.ctx).Where("user_id = ?", int32(i)).First(&card).Error
 		if err != nil {
-			r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				r.logger.Debug("failed to get card for user", zap.Int("userID", i), zap.Error(err))
+			}
 			continue
 		}
-		if card != nil {
-			cards = append(cards, *card)
-		}
+		cards = append(cards, card)
 	}
 
 	if len(cards) < total {
@@ -85,30 +88,29 @@ func (r *withdrawSeeder) Seed() error {
 		monthIndex := i % 12
 		withdrawTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
-		req := db.CreateWithdrawParams{
+		withdraw := &models.Withdraw{
 			CardNumber:     card.CardNumber,
 			WithdrawAmount: int32(rand.Intn(1000000) + 50000),
 			WithdrawTime:   withdrawTime,
 		}
 
-		withdraw, err := r.db.CreateWithdraw(r.ctx, req)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(withdraw).Error; err != nil {
 			r.logger.Error("failed to seed withdraw", zap.Int("index", i), zap.Error(err))
 			return fmt.Errorf("failed to create withdraw %d: %w", i, err)
 		}
 
-		_, err = r.db.UpdateWithdrawStatus(r.ctx, db.UpdateWithdrawStatusParams{
-			WithdrawID: withdraw.WithdrawID,
-			Status:     status,
-		})
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Model(&models.Withdraw{}).
+			Where("withdraw_id = ?", withdraw.WithdrawID).
+			Update("status", status).Error; err != nil {
 			r.logger.Error("failed to update withdraw status", zap.Int("withdraw.id", int(withdraw.WithdrawID)), zap.Error(err))
 			return fmt.Errorf("failed to update status: %w", err)
 		}
 
 		if i >= active {
-			_, err = r.db.TrashWithdraw(r.ctx, withdraw.WithdrawID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Withdraw{}).
+				Where("withdraw_id = ? AND deleted_at IS NULL", withdraw.WithdrawID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash withdraw", zap.Int("withdraw.id", int(withdraw.WithdrawID)), zap.Error(err))
 				return fmt.Errorf("failed to trash withdraw %d: %w", i, err)
 			}

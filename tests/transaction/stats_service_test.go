@@ -5,16 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	"github.com/MamangRust/monolith-payment-gateway-transaction/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -27,7 +26,6 @@ import (
 type TransactionStatsServiceTestSuite struct {
 	suite.Suite
 	ts         *tests.TestSuite
-	dbPool     *pgxpool.Pool
 	svc        service.Service
 	userID     int32
 	cardNumber string
@@ -40,10 +38,6 @@ func (s *TransactionStatsServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -79,31 +73,28 @@ func (s *TransactionStatsServiceTestSuite) SetupSuite() {
 	s.testMonth = int(time.Now().Month())
 
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TransactionService', 'Stats', 'transaction_svc_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TransactionService', 'Stats', 'transaction_svc_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber = "1111222233334444"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber).Error
 	s.Require().NoError(err)
 
 	// Merchant needs to be active for transactions
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Test Merchant', 'test_key', $1, 'active') RETURNING merchant_id", s.userID).Scan(&s.merchantID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Test Merchant', 'test_key', ?, 'active') RETURNING merchant_id", s.userID).Scan(&s.merchantID).Error
 	s.Require().NoError(err)
 
 	// Seed Transactions
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES ($1, $2, $3, 'bank_transfer', $4, 'success')",
-		s.cardNumber, s.merchantID, 100000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES (?, ?, ?, 'bank_transfer', ?, 'success')",
+		s.cardNumber, s.merchantID, 100000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES ($1, $2, $3, 'bank_transfer', $4, 'failed')",
-		s.cardNumber, s.merchantID, 50000, time.Date(s.testYear, time.Month(s.testMonth), 11, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, merchant_id, amount, payment_method, transaction_time, status) VALUES (?, ?, ?, 'bank_transfer', ?, 'failed')",
+		s.cardNumber, s.merchantID, 50000, time.Date(s.testYear, time.Month(s.testMonth), 11, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 }
 
 func (s *TransactionStatsServiceTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	s.ts.Teardown()
 }
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MamangRust/monolith-payment-gateway-pkg/database"
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/dotenv"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/middleware"
@@ -21,22 +20,19 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	"github.com/grafana/pyroscope-go"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
+	"gorm.io/gorm"
 )
 
 type GRPCServer struct {
 	Logger           logger.LoggerInterface
-	DB               *db.Queries
-	DBPool           *pgxpool.Pool
 	GormDB           *gorm.DB
 	Ctx              context.Context
 	Cancel           context.CancelFunc
@@ -80,12 +76,6 @@ func New(cfg *Config) (*GRPCServer, error) {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	dbConn, err := database.NewClient(l)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-	queries := db.New(dbConn)
-
 	gormDB, err := database.NewGormClient(l)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database via GORM: %w", err)
@@ -103,8 +93,6 @@ func New(cfg *Config) (*GRPCServer, error) {
 
 	return &GRPCServer{
 		Logger:     l,
-		DB:         queries,
-		DBPool:     dbConn,
 		GormDB:     gormDB,
 		Ctx:        ctx,
 		Cancel:     cancel,
@@ -242,11 +230,6 @@ func (s *GRPCServer) Cleanup() {
 		if err := s.cleanupHooks[i](); err != nil {
 			s.Logger.Error("Failed to close application resource", zap.Error(err))
 		}
-	}
-
-	if s.DBPool != nil {
-		s.DBPool.Close()
-		s.Logger.Info("Database connection pool closed")
 	}
 
 	if s.GormDB != nil {

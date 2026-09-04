@@ -48,4 +48,3 @@ func NewMerchantStatsByApiKeyService(deps *DepsStatsByApiKey) MerchantStatsByApi
 		}),
 	}
 }
-

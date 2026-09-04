@@ -1,31 +1,29 @@
 package card_test
 
 import (
-	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"context"
 	"fmt"
+	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/MamangRust/monolith-payment-gateway-card/repository"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	sharederrors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
+	sharederrors "github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"net/http"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"
+	"net/http"
 )
 
 type CardRepositoryTestSuite struct {
 	suite.Suite
 	ts       *tests.TestSuite
 	gormDB   *gorm.DB
-	pool     *pgxpool.Pool
 	repo     *repository.Repositories
 	userRepo user_repo.Repositories
 	userID   int
@@ -35,10 +33,6 @@ func (s *CardRepositoryTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.pool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -60,9 +54,6 @@ func (s *CardRepositoryTestSuite) SetupSuite() {
 }
 
 func (s *CardRepositoryTestSuite) TearDownSuite() {
-	if s.pool != nil {
-		s.pool.Close()
-	}
 	s.ts.Teardown()
 }
 

@@ -37,17 +37,9 @@ generate-proto:
         --go-grpc_out={{OUTDIR_PROTO}} --go-grpc_opt=paths=source_relative \
         $(find {{PROTO_DIR}} -name "*.proto")
 
-# Generate sqlc code
-generate-sql:
-    sqlc generate
-
 # Generate swagger documentation
 generate-swagger:
     swag init -g service/apigateway/cmd/main.go -o service/apigateway/docs
-
-# Run seeder
-seeder:
-    go run service/seeder/main.go
 
 # Build images for all services (docker or podman)
 build-image:

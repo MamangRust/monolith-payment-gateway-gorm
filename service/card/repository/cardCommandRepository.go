@@ -33,8 +33,6 @@ func (r *cardCommandRepository) CreateCard(ctx context.Context, request *request
 	return &result, nil
 }
 
-
-
 func (r *cardCommandRepository) UpdateCard(ctx context.Context, request *requests.UpdateCardRequest) (*models.CardUpdateRow, error) {
 	var result models.CardUpdateRow
 	err := r.db.WithContext(ctx).Raw(`UPDATE cards SET card_type = ?, expire_date = ?, cvv = ?, card_provider = ?, updated_at = current_timestamp WHERE card_id = ? AND deleted_at IS NULL RETURNING card_id, card_number, card_type`,

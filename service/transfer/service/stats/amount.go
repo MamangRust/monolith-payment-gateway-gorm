@@ -43,7 +43,6 @@ func NewTransferStatsAmountService(params *TransferStatsAmountDeps) TransferStat
 	}
 }
 
-
 func (s *transferStatsAmountService) FindMonthlyTransferAmounts(ctx context.Context, year int) ([]*models.TransferMonthlyAmountRow, error) {
 	const method = "FindMonthlyTransferAmounts"
 

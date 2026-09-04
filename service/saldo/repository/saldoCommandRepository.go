@@ -34,9 +34,9 @@ func (r *saldoCommandRepository) CreateSaldo(ctx context.Context, request *reque
 	}
 
 	return &models.CreateSaldoRow{
-		SaldoID:      saldo.SaldoID,
-		CardNumber:   saldo.CardNumber,
-		TotalBalance: saldo.TotalBalance,
+		SaldoID:        saldo.SaldoID,
+		CardNumber:     saldo.CardNumber,
+		TotalBalance:   saldo.TotalBalance,
 		WithdrawAmount: saldo.WithdrawAmount,
 		WithdrawTime:   saldo.WithdrawTime,
 		CreatedAt:      saldo.CreatedAt,

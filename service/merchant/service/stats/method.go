@@ -43,7 +43,6 @@ func NewMerchantStatsMethodService(params *MerchantStatsMethodDeps) MerchantStat
 	}
 }
 
-
 func (s *merchantStatsMethodService) FindMonthlyPaymentMethodsMerchant(ctx context.Context, year int) ([]*models.MerchantMonthlyPaymentMethodRow, error) {
 	const method = "FindMonthlyPaymentMethodsMerchant"
 

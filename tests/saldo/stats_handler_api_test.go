@@ -12,17 +12,14 @@ import (
 
 	saldo_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/saldo"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/saldo/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	"github.com/MamangRust/monolith-payment-gateway-saldo/handler"
+	"github.com/MamangRust/monolith-payment-gateway-saldo/repository"
+	"github.com/MamangRust/monolith-payment-gateway-saldo/service"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/MamangRust/monolith-payment-gateway-saldo/handler"
-	"github.com/MamangRust/monolith-payment-gateway-saldo/repository"
-	"github.com/MamangRust/monolith-payment-gateway-saldo/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -30,28 +27,25 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type SaldoStatsHandlerApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	lis         *bufconn.Listener
-	conn        *grpc.ClientConn
-	userID      int32
-	cardNumber  string
-	testYear    int
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	lis        *bufconn.Listener
+	conn       *grpc.ClientConn
+	userID     int32
+	cardNumber string
+	testYear   int
 }
 
 func (s *SaldoStatsHandlerApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -84,10 +78,10 @@ func (s *SaldoStatsHandlerApiTestSuite) SetupSuite() {
 		}
 	}()
 
-	conn, err := grpc.NewClient("passthrough://bufnet", 
+	conn, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 	s.conn = conn
@@ -107,14 +101,13 @@ func (s *SaldoStatsHandlerApiTestSuite) SetupSuite() {
 	s.testYear = time.Now().Year()
 
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('SaldoApi', 'Stats', 'saldo_api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('SaldoApi', 'Stats', 'saldo_api_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber = "0000111122223333"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber).Error
 	s.Require().NoError(err)
-
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO saldos (card_number, total_balance) VALUES ($1, $2)", s.cardNumber, 3000000)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO saldos (card_number, total_balance) VALUES (?, ?)", s.cardNumber, 3000000).Error
 	s.Require().NoError(err)
 }
 
@@ -124,9 +117,6 @@ func (s *SaldoStatsHandlerApiTestSuite) TearDownSuite() {
 	}
 	if s.lis != nil {
 		s.lis.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }

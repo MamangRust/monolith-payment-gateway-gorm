@@ -5,39 +5,33 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	stats_repo "github.com/MamangRust/monolith-payment-gateway-merchant/repository/stats"
 	apikey_repo "github.com/MamangRust/monolith-payment-gateway-merchant/repository/statsbyapikey"
 	merchant_repo "github.com/MamangRust/monolith-payment-gateway-merchant/repository/statsbymerchant"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
-	"github.com/jackc/pgx/v5/pgxpool"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type MerchantStatsRepositoryTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	repo        stats_repo.MerchantStatsRepository
-	apikeyRepo  apikey_repo.MerchantStatsByApiKeyRepository
+	ts           *tests.TestSuite
+	repo         stats_repo.MerchantStatsRepository
+	apikeyRepo   apikey_repo.MerchantStatsByApiKeyRepository
 	merchantRepo merchant_repo.MerchantStatsByMerchantRepository
-	merchantID1 int32
-	merchantID2 int32
-	apiKey1     string
-	apiKey2     string
-	testYear    int
+	merchantID1  int32
+	merchantID2  int32
+	apiKey1      string
+	apiKey2      string
+	testYear     int
 }
 
 func (s *MerchantStatsRepositoryTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
@@ -52,45 +46,45 @@ func (s *MerchantStatsRepositoryTestSuite) SetupSuite() {
 	// Seed Data
 	ctx := context.Background()
 	var userID int32
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Merchant', 'Stats', 'merchant_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Merchant', 'Stats', 'merchant_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
 	s.Require().NoError(err)
 
 	s.apiKey1 = "merchant-key-1"
 	s.apiKey2 = "merchant-key-2"
 
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant 1', $1, $2, 'active') RETURNING merchant_id", s.apiKey1, userID).Scan(&s.merchantID1)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant 1', ?, ?, 'active') RETURNING merchant_id", s.apiKey1, userID).Scan(&s.merchantID1).Error
 	s.Require().NoError(err)
 
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant 2', $1, $2, 'active') RETURNING merchant_id", s.apiKey2, userID).Scan(&s.merchantID2)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Merchant 2', ?, ?, 'active') RETURNING merchant_id", s.apiKey2, userID).Scan(&s.merchantID2).Error
 	s.Require().NoError(err)
 
 	// Seed cards for transactions
 	cardNumber1 := "1111222233334444"
 	cardNumber2 := "5555666677778888"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", userID, cardNumber1)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", userID, cardNumber1).Error
 	s.NoError(err)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'mastercard', '2030-01-01')", userID, cardNumber2)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'mastercard', '2030-01-01')", userID, cardNumber2).Error
 	s.NoError(err)
 
 	// Seed Transactions
 	// Merchant 1: Jan (500, visa), Feb (300, mastercard)
-	s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ($1, $2, $3, $4, $5, 'success')", cardNumber1, 500, "visa", s.merchantID1, time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC))
-	s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ($1, $2, $3, $4, $5, 'success')", cardNumber2, 300, "mastercard", s.merchantID1, time.Date(s.testYear, 2, 10, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES (?, ?, ?, ?, ?, 'success')", cardNumber1, 500, "visa", s.merchantID1, time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC)).Error
+	s.NoError(err)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES (?, ?, ?, ?, ?, 'success')", cardNumber2, 300, "mastercard", s.merchantID1, time.Date(s.testYear, 2, 10, 10, 0, 0, 0, time.UTC)).Error
+	s.NoError(err)
 
 	// Merchant 2: Jan (1000, visa)
-	s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ($1, $2, $3, $4, $5, 'success')", cardNumber1, 1000, "visa", s.merchantID2, time.Date(s.testYear, 1, 15, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES (?, ?, ?, ?, ?, 'success')", cardNumber1, 1000, "visa", s.merchantID2, time.Date(s.testYear, 1, 15, 10, 0, 0, 0, time.UTC)).Error
+	s.NoError(err)
 }
 
 func (s *MerchantStatsRepositoryTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	s.ts.Teardown()
 }
 
 func (s *MerchantStatsRepositoryTestSuite) TestGlobalStats() {
 	ctx := context.Background()
-	
+
 	// Monthly Amount
 	res, err := s.repo.GetMonthlyAmountMerchant(ctx, s.testYear)
 	s.NoError(err)
@@ -105,7 +99,6 @@ func (s *MerchantStatsRepositoryTestSuite) TestGlobalStats() {
 	s.NoError(err)
 	s.NotEmpty(methRes)
 }
-
 
 func (s *MerchantStatsRepositoryTestSuite) TestMerchantStats() {
 	ctx := context.Background()

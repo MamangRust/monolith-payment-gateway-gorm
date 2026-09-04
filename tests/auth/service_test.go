@@ -7,17 +7,16 @@ import (
 
 	"github.com/MamangRust/monolith-payment-gateway-auth/repository"
 	"github.com/MamangRust/monolith-payment-gateway-auth/service"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
-	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/auth"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -26,7 +25,6 @@ import (
 type AuthServiceTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
 	redisClient *redis.Client
 	service     *service.Service
 	email       string
@@ -37,10 +35,6 @@ func (s *AuthServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -74,12 +68,12 @@ func (s *AuthServiceTestSuite) SetupSuite() {
 	s.password = "password123"
 
 	// Seed ROLE_ADMIN
-	_, _ = pool.Exec(context.Background(), "INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN')")
+	err = gormDB.WithContext(context.Background()).Exec("INSERT INTO roles (role_name) VALUES ('ROLE_ADMIN') ON CONFLICT (role_name) DO NOTHING").Error
+	s.Require().NoError(err)
 }
 
 func (s *AuthServiceTestSuite) TearDownSuite() {
 	s.redisClient.Close()
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 
@@ -154,7 +148,7 @@ func (s *AuthServiceTestSuite) Test4_LoginLockout() {
 
 func (s *AuthServiceTestSuite) Test3_ForgotPassword() {
 	ctx := context.Background()
-	
+
 	success, err := s.service.PasswordReset.ForgotPassword(ctx, s.email)
 	s.NoError(err)
 	s.True(success)

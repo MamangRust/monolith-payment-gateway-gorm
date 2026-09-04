@@ -9,11 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/role"
 	role_handler "github.com/MamangRust/monolith-payment-gateway-apigateway/handler/role"
 	"github.com/MamangRust/monolith-payment-gateway-apigateway/redis"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/role"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-role/handler"
 	"github.com/MamangRust/monolith-payment-gateway-role/repository"
@@ -22,7 +20,6 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-shared/errors"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	redis_client "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
@@ -30,27 +27,24 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"net"
 )
 
 type RoleApiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	echo        *echo.Echo
-	grpcServer  *grpc.Server
-	lis         *bufconn.Listener
-	roleID      int32
+	ts         *tests.TestSuite
+	echo       *echo.Echo
+	grpcServer *grpc.Server
+	lis        *bufconn.Listener
+	roleID     int32
 }
 
 func (s *RoleApiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis_client.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -90,7 +84,7 @@ func (s *RoleApiTestSuite) SetupSuite() {
 
 	// Setup Echo and register apigateway handler
 	s.echo = echo.New()
-	
+
 	// Inject user_id middleware
 	s.echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -110,10 +104,10 @@ func (s *RoleApiTestSuite) SetupSuite() {
 		log.Warn("Cache NOT found in SetupSuite!")
 	}
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet", 
+	conn, err := grpc.DialContext(context.Background(), "bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithInsecure())
 	s.Require().NoError(err)
 
@@ -137,9 +131,6 @@ func (s *RoleApiTestSuite) TearDownSuite() {
 	if s.grpcServer != nil {
 		s.grpcServer.Stop()
 	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}
@@ -151,19 +142,19 @@ func (s *RoleApiTestSuite) Test1_RoleLifecycle() {
 	req := httptest.NewRequest(http.MethodPost, "/api/role", strings.NewReader(reqJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-	
+
 	s.echo.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		s.T().Errorf("Response Body: %s", rec.Body.String())
 		return
 	}
-	
+
 	s.Equal(http.StatusOK, rec.Code)
 	var res map[string]interface{}
 	err := json.Unmarshal(rec.Body.Bytes(), &res)
 	s.NoError(err)
-	
+
 	data, ok := res["data"].(map[string]interface{})
 	if !ok {
 		s.T().Errorf("Data not found in response: %v", res)
@@ -171,7 +162,7 @@ func (s *RoleApiTestSuite) Test1_RoleLifecycle() {
 	}
 	s.roleID = int32(data["id"].(float64))
 	s.Equal("Test API Role", data["name"])
-	
+
 	// FindById
 	req = httptest.NewRequest(http.MethodGet, "/api/role-query/"+strconv.Itoa(int(s.roleID)), nil)
 	rec = httptest.NewRecorder()

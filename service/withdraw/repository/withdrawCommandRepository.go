@@ -39,11 +39,11 @@ func (r *withdrawCommandRepository) CreateWithdraw(ctx context.Context, request 
 func (r *withdrawCommandRepository) CreateWithdrawAtomic(ctx context.Context, request *requests.CreateWithdrawRequest) (*WithdrawAtomicResult, error) {
 	// Fast path: if idempotency key is set, check for existing record first
 	if request.IdempotencyKey != "" {
-	var existing models.WithdrawAllFieldsRow
-	err := r.db.WithContext(ctx).Raw(`SELECT withdraw_id, withdraw_no, card_number, withdraw_amount, withdraw_time, status, created_at, updated_at FROM withdraws WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
-	if err == nil && existing.WithdrawID > 0 {
-		return &WithdrawAtomicResult{Row: &existing, Replayed: true}, nil
-	}
+		var existing models.WithdrawAllFieldsRow
+		err := r.db.WithContext(ctx).Raw(`SELECT withdraw_id, withdraw_no, card_number, withdraw_amount, withdraw_time, status, created_at, updated_at FROM withdraws WHERE idempotency_key = ? AND deleted_at IS NULL`, request.IdempotencyKey).Scan(&existing).Error
+		if err == nil && existing.WithdrawID > 0 {
+			return &WithdrawAtomicResult{Row: &existing, Replayed: true}, nil
+		}
 	}
 	var result models.WithdrawAllFieldsRow
 	cn := request.CardNumber

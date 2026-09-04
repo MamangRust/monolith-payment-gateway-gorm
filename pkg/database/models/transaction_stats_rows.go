@@ -42,7 +42,7 @@ type TransactionMonthlyPaymentMethodRow struct {
 
 // TransactionYearlyPaymentMethodRow - yearly payment method stats
 type TransactionYearlyPaymentMethodRow struct {
-	Year        string `gorm:"column:year" json:"year"`
+	Year          string `gorm:"column:year" json:"year"`
 	PaymentMethod string `gorm:"column:payment_method" json:"payment_method"`
 	TotalCount    int64  `gorm:"column:total_count" json:"total_count"`
 	TotalAmount   int64  `gorm:"column:total_amount" json:"total_amount"`
@@ -57,7 +57,7 @@ type TransactionMonthlyAmountRow struct {
 // TransactionYearlyAmountRow - yearly amount stats
 type TransactionYearlyAmountRow struct {
 	Year        string `gorm:"column:year" json:"year"`
-	TotalAmount int64       `gorm:"column:total_amount" json:"total_amount"`
+	TotalAmount int64  `gorm:"column:total_amount" json:"total_amount"`
 }
 
 // TransactionMonthlyStatusSuccessByCardRow - monthly status success by card
@@ -100,7 +100,7 @@ type TransactionMonthlyPaymentMethodByCardRow struct {
 
 // TransactionYearlyPaymentMethodByCardRow - yearly payment method by card
 type TransactionYearlyPaymentMethodByCardRow struct {
-	Year        string `gorm:"column:year" json:"year"`
+	Year          string `gorm:"column:year" json:"year"`
 	PaymentMethod string `gorm:"column:payment_method" json:"payment_method"`
 	TotalCount    int64  `gorm:"column:total_count" json:"total_count"`
 	TotalAmount   int64  `gorm:"column:total_amount" json:"total_amount"`
@@ -115,5 +115,5 @@ type TransactionMonthlyAmountByCardRow struct {
 // TransactionYearlyAmountByCardRow - yearly amount by card
 type TransactionYearlyAmountByCardRow struct {
 	Year        string `gorm:"column:year" json:"year"`
-	TotalAmount int64       `gorm:"column:total_amount" json:"total_amount"`
+	TotalAmount int64  `gorm:"column:total_amount" json:"total_amount"`
 }

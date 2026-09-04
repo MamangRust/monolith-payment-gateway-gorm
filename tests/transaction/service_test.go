@@ -10,8 +10,6 @@ import (
 	card_repo_impl "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	merchant_repo_impl "github.com/MamangRust/monolith-payment-gateway-merchant/repository"
 	models "github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	saldo_repo_impl "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
@@ -21,10 +19,11 @@ import (
 	"github.com/MamangRust/monolith-payment-gateway-transaction/repository"
 	"github.com/MamangRust/monolith-payment-gateway-transaction/service"
 	user_repo_impl "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type testMerchantRepo struct {
@@ -168,7 +167,6 @@ type TransactionServiceTestSuite struct {
 	suite.Suite
 	ts                  *tests.TestSuite
 	transactionService  service.Service
-	dbPool              *pgxpool.Pool
 	gormDB              *gorm.DB
 	transactionID       int
 	cardNumber          string
@@ -183,10 +181,6 @@ func (s *TransactionServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -298,7 +292,6 @@ func (s *TransactionServiceTestSuite) SetupSuite() {
 }
 
 func (s *TransactionServiceTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 

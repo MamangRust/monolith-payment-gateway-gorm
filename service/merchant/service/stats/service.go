@@ -48,4 +48,3 @@ func NewMerchantStatsService(deps *DepsStats) MerchantStatsService {
 		}),
 	}
 }
-

@@ -2,18 +2,20 @@ package seeder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // transactionSeeder is a struct that represents a seeder for the transactions table.
 type transactionSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -22,13 +24,13 @@ type transactionSeeder struct {
 // responsible for populating the transactions table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the transactionSeeder struct
-func NewTransactionSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *transactionSeeder {
+func NewTransactionSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *transactionSeeder {
 	return &transactionSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -55,18 +57,19 @@ func (r *transactionSeeder) Seed() error {
 	paymentMethods := []string{"Bank Alpha", "Bank Beta", "Bank Gamma"}
 	statusOptions := []string{"pending", "success", "failed"}
 
-	var cards []db.GetCardByUserIDRow
+	var cards []models.Card
 	for i := 1; i <= total; i++ {
-		card, err := r.db.GetCardByUserID(r.ctx, int32(i))
+		var card models.Card
+		err := r.db.WithContext(r.ctx).Where("user_id = ?", int32(i)).First(&card).Error
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				r.logger.Error("no card found for user", zap.Int("userID", i))
+				continue
+			}
 			r.logger.Error("failed to get card for user", zap.Int("userID", i), zap.Error(err))
 			return fmt.Errorf("failed to get card for user %d: %w", i, err)
 		}
-		if card == nil {
-			r.logger.Error("no card found for user", zap.Int("userID", i))
-			continue
-		}
-		cards = append(cards, *card)
+		cards = append(cards, card)
 	}
 
 	if len(cards) < total {
@@ -74,12 +77,8 @@ func (r *transactionSeeder) Seed() error {
 		return fmt.Errorf("not enough cards for transaction seeding: required %d, got %d", total, len(cards))
 	}
 
-	merchants, err := r.db.GetMerchants(r.ctx, db.GetMerchantsParams{
-		Column1: "",
-		Limit:   int32(total),
-		Offset:  0,
-	})
-	if err != nil {
+	var merchants []models.Merchant
+	if err := r.db.WithContext(r.ctx).Limit(total).Find(&merchants).Error; err != nil {
 		r.logger.Error("failed to get merchant list", zap.Error(err))
 		return fmt.Errorf("failed to get merchant list: %w", err)
 	}
@@ -104,7 +103,7 @@ func (r *transactionSeeder) Seed() error {
 		monthIndex := i % 12
 		transactionTime := months[monthIndex].Add(time.Duration(rand.Intn(28)) * 24 * time.Hour)
 
-		request := db.CreateTransactionParams{
+		transaction := &models.Transaction{
 			CardNumber:      card.CardNumber,
 			Amount:          int32(rand.Intn(1000000-50000) + 50000),
 			PaymentMethod:   paymentMethod,
@@ -112,24 +111,23 @@ func (r *transactionSeeder) Seed() error {
 			TransactionTime: transactionTime,
 		}
 
-		transaction, err := r.db.CreateTransaction(r.ctx, request)
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Create(transaction).Error; err != nil {
 			r.logger.Error("failed to seed transaction", zap.Int("index", i), zap.Error(err))
 			return fmt.Errorf("failed to seed transaction %d: %w", i, err)
 		}
 
-		_, err = r.db.UpdateTransactionStatus(r.ctx, db.UpdateTransactionStatusParams{
-			TransactionID: transaction.TransactionID,
-			Status:        status,
-		})
-		if err != nil {
+		if err := r.db.WithContext(r.ctx).Model(&models.Transaction{}).
+			Where("transaction_id = ?", transaction.TransactionID).
+			Update("status", status).Error; err != nil {
 			r.logger.Error("failed to update transaction status", zap.Int("transactionID", int(transaction.TransactionID)), zap.String("status", status), zap.Error(err))
 			return fmt.Errorf("failed to update status for transaction ID %d: %w", transaction.TransactionID, err)
 		}
 
 		if i >= active {
-			_, err = r.db.TrashTransaction(r.ctx, transaction.TransactionID)
-			if err != nil {
+			now := time.Now()
+			if err := r.db.WithContext(r.ctx).Model(&models.Transaction{}).
+				Where("transaction_id = ? AND deleted_at IS NULL", transaction.TransactionID).
+				Update("deleted_at", &now).Error; err != nil {
 				r.logger.Error("failed to trash transaction", zap.Int("index", i), zap.Error(err))
 				return fmt.Errorf("failed to trash transaction %d: %w", i, err)
 			}

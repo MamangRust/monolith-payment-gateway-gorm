@@ -11,17 +11,17 @@ import (
 
 type merchantCachedResponseAll struct {
 	Data         []*models.MerchantListRow `json:"data"`
-	TotalRecords *int                  `json:"total_records"`
+	TotalRecords *int                      `json:"total_records"`
 }
 
 type merchantCachedResponseActive struct {
 	Data         []*models.MerchantListWithDeletedRow `json:"data"`
-	TotalRecords *int                        `json:"total_records"`
+	TotalRecords *int                                 `json:"total_records"`
 }
 
 type merchantCachedResponseTrashed struct {
 	Data         []*models.MerchantListWithDeletedRow `json:"data"`
-	TotalRecords *int                         `json:"total_records"`
+	TotalRecords *int                                 `json:"total_records"`
 }
 
 type merchantQueryCache struct {

@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	"gorm.io/gorm"
 )
 
 // Deps is a struct that contains the dependencies for the seeder
 type Deps struct {
-	DB     *db.Queries
+	DB     *gorm.DB
 	Hash   hash.HashPassword
 	Ctx    context.Context
 	Logger logger.LoggerInterface

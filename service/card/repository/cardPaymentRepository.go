@@ -1,9 +1,9 @@
 package repository
 
 import (
-	"fmt"
 	"context"
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
@@ -34,10 +34,10 @@ func (r *cardPaymentRepository) PostPaymentIdempotent(ctx context.Context, req *
 			return &CardPaymentResult{Payment: existing, Replayed: true}, nil
 		}
 		if err != nil {
-		// Not found is OK, other errors are not
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, card_errors.ErrGetCardPaymentFailed.WithInternal(err)
-		}
+			// Not found is OK, other errors are not
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, card_errors.ErrGetCardPaymentFailed.WithInternal(err)
+			}
 		}
 	}
 

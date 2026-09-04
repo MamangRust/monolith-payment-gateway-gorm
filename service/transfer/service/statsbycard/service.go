@@ -41,4 +41,3 @@ func NewTransferStatsByCardService(deps *DepsStats) TransferStatsByCardService {
 		}),
 	}
 }
-

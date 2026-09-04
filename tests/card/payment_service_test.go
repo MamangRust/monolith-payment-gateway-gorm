@@ -10,25 +10,24 @@ import (
 
 	"github.com/MamangRust/monolith-payment-gateway-card/repository"
 	"github.com/MamangRust/monolith-payment-gateway-card/service"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type CardPaymentServiceTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
 	cardService service.Service
-	dbPool      *pgxpool.Pool
+	gormDB      *gorm.DB
 	userID      int
 	cardNumber  string
 }
@@ -38,10 +37,6 @@ func (s *CardPaymentServiceTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
 	redisClient := redis.NewClient(opts)
@@ -50,6 +45,7 @@ func (s *CardPaymentServiceTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
+	s.gormDB = gormDB
 	repos := repository.NewRepositories(gormDB)
 
 	logger.ResetInstance()
@@ -94,7 +90,6 @@ func (s *CardPaymentServiceTestSuite) SetupSuite() {
 }
 
 func (s *CardPaymentServiceTestSuite) TearDownSuite() {
-	s.dbPool.Close()
 	s.ts.Teardown()
 }
 
@@ -141,7 +136,7 @@ func (s *CardPaymentServiceTestSuite) Test2_IdempotentReplayAndPayloadConflict()
 	s.Equal(sharederrors.ErrorTypeConflict, appErr.Type)
 
 	var count int
-	err = s.dbPool.QueryRow(ctx, "SELECT COUNT(*) FROM card_payments WHERE reference_id = $1", referenceID).Scan(&count)
+	err = s.gormDB.WithContext(ctx).Raw("SELECT COUNT(*) FROM card_payments WHERE reference_id = ?", referenceID).Scan(&count).Error
 	s.Require().NoError(err)
 	s.Equal(1, count)
 }

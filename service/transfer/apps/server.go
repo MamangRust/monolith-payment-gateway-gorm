@@ -68,7 +68,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 	repos := repository.NewRepositories(srv.GormDB, saldoAdapter, cardAdapter)
 	myKafka := kafka.NewKafka(srv.Logger, []string{viper.GetString("KAFKA_BROKERS")})
 	srv.AddCleanupHook(myKafka.Close)
-	relay, relayErr := outbox.NewRelay(srv.DBPool, myKafka, outbox.RelayConfig{})
+	relay, relayErr := outbox.NewRelay(srv.GormDB, myKafka, outbox.RelayConfig{})
 	if relayErr != nil {
 		srv.Cleanup()
 		return nil, fmt.Errorf("initialize transfer outbox relay: %w", relayErr)

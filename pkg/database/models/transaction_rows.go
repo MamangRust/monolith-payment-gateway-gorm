@@ -39,14 +39,14 @@ type TransactionListWithDeletedRow struct {
 
 // TransactionAllFieldsRow - transaction with all fields
 type TransactionAllFieldsRow struct {
-	TransactionID   int32     `gorm:"column:transaction_id" json:"transaction_id"`
-	TransactionNo   uuid.UUID `gorm:"column:transaction_no" json:"transaction_no"`
-	CardNumber      string    `gorm:"column:card_number" json:"card_number"`
-	Amount          int32     `gorm:"column:amount" json:"amount"`
-	PaymentMethod   string    `gorm:"column:payment_method" json:"payment_method"`
-	MerchantID      int32     `gorm:"column:merchant_id" json:"merchant_id"`
-	TransactionTime time.Time `gorm:"column:transaction_time" json:"transaction_time"`
-	Status          string    `gorm:"column:status" json:"status"`
+	TransactionID      int32     `gorm:"column:transaction_id" json:"transaction_id"`
+	TransactionNo      uuid.UUID `gorm:"column:transaction_no" json:"transaction_no"`
+	CardNumber         string    `gorm:"column:card_number" json:"card_number"`
+	Amount             int32     `gorm:"column:amount" json:"amount"`
+	PaymentMethod      string    `gorm:"column:payment_method" json:"payment_method"`
+	MerchantID         int32     `gorm:"column:merchant_id" json:"merchant_id"`
+	TransactionTime    time.Time `gorm:"column:transaction_time" json:"transaction_time"`
+	Status             string    `gorm:"column:status" json:"status"`
 	IdempotencyKey     string    `gorm:"column:idempotency_key" json:"idempotency_key"`
 	CardNumber2        string    `gorm:"column:card_number_2" json:"card_number_2"`
 	MerchantCardNumber string    `gorm:"column:merchant_card_number" json:"merchant_card_number"`
@@ -82,4 +82,3 @@ type TransactionByIdempotencyKeyRow struct {
 	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
-

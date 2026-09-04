@@ -34,7 +34,7 @@ func NewServer(cfg *server.Config) (*server.GRPCServer, error) {
 
 	myKafka := kafka.NewKafka(srv.Logger, []string{viper.GetString("KAFKA_BROKERS")})
 	srv.AddCleanupHook(myKafka.Close)
-	relay, relayErr := outbox.NewRelay(srv.DBPool, myKafka, outbox.RelayConfig{})
+	relay, relayErr := outbox.NewRelay(srv.GormDB, myKafka, outbox.RelayConfig{})
 	if relayErr != nil {
 		srv.Cleanup()
 		return nil, fmt.Errorf("initialize auth outbox relay: %w", relayErr)

@@ -1,26 +1,25 @@
 package withdraw_test
 
 import (
-	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/handler"
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/withdraw"
-	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
-	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"context"
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/withdraw"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
+	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
+	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
+	"github.com/MamangRust/monolith-payment-gateway-test"
+	user_repo "github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/handler"
+	"github.com/MamangRust/monolith-payment-gateway-withdraw/repository"
 	"github.com/MamangRust/monolith-payment-gateway-withdraw/service"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
-	"github.com/MamangRust/monolith-payment-gateway-test"
-	"context"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -31,17 +30,16 @@ import (
 
 type WithdrawGapiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	redisClient *redis.Client
-	grpcServer  *grpc.Server
+	ts            *tests.TestSuite
+	redisClient   *redis.Client
+	grpcServer    *grpc.Server
 	commandClient pb.WithdrawCommandServiceClient
 	queryClient   pb.WithdrawQueryServiceClient
-	conn        *grpc.ClientConn
-	repos       repository.Repositories
-	userRepo    user_repo.UserCommandRepository
-	cardRepo    card_repo.CardCommandRepository
-	saldoRepo   saldo_repo.Repositories
+	conn          *grpc.ClientConn
+	repos         repository.Repositories
+	userRepo      user_repo.UserCommandRepository
+	cardRepo      card_repo.CardCommandRepository
+	saldoRepo     saldo_repo.Repositories
 
 	cardNumber string
 	withdrawID int32
@@ -52,10 +50,6 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
 	s.redisClient = redis.NewClient(opts)
@@ -64,16 +58,16 @@ func (s *WithdrawGapiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	// Repositories for seeding and service dependencies
 	userRepos := user_repo.NewUserCommandRepository(gormDB)
 	cardRepos := card_repo.NewRepositories(gormDB)
 	saldoRepos := saldo_repo.NewRepositories(gormDB)
-	
+
 	s.userRepo = userRepos
 	s.cardRepo = cardRepos.CardCommand
 	s.saldoRepo = saldoRepos
-	
+
 	s.repos = repository.NewRepositories(gormDB, cardRepos.CardQuery, saldoRepos)
 
 	logger.ResetInstance()
@@ -128,9 +122,6 @@ func (s *WithdrawGapiTestSuite) TearDownSuite() {
 	}
 	if s.redisClient != nil {
 		s.redisClient.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	if s.ts != nil {
 		s.ts.Teardown()

@@ -5,24 +5,23 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	repository "github.com/MamangRust/monolith-payment-gateway-transfer/repository/stats"
-	statsbycard_repository "github.com/MamangRust/monolith-payment-gateway-transfer/repository/statsbycard"
 	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
+	repository "github.com/MamangRust/monolith-payment-gateway-transfer/repository/stats"
+	statsbycard_repository "github.com/MamangRust/monolith-payment-gateway-transfer/repository/statsbycard"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type TransferStatsRepositoryTestSuite struct {
 	suite.Suite
-	ts             *tests.TestSuite
-	dbPool         *pgxpool.Pool
-	repo           repository.TransferStatsStatusRepository
-	repoByCard     statsbycard_repository.TransferStatsByCardStatusRepository
-	testYear       int
-	testMonth      int
+	ts         *tests.TestSuite
+	repo       repository.TransferStatsStatusRepository
+	repoByCard statsbycard_repository.TransferStatsByCardStatusRepository
+	gormDB     *gorm.DB
+	testYear   int
+	testMonth  int
 }
 
 func (s *TransferStatsRepositoryTestSuite) SetupSuite() {
@@ -30,14 +29,11 @@ func (s *TransferStatsRepositoryTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.ts = ts
 
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
-
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
+	s.gormDB = gormDB
 	s.repo = repository.NewTransferStatsStatusRepository(gormDB)
 	s.repoByCard = statsbycard_repository.NewTransferStatsByCardStatusRepository(gormDB)
 	s.testYear = time.Now().Year()
@@ -45,9 +41,6 @@ func (s *TransferStatsRepositoryTestSuite) SetupSuite() {
 }
 
 func (s *TransferStatsRepositoryTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	s.ts.Teardown()
 }
 
@@ -56,24 +49,24 @@ func (s *TransferStatsRepositoryTestSuite) TestTransferStatusStats() {
 
 	// Seed data
 	var userID int32
-	err := s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Transfer', 'Stats', 'transfer_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err := s.gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Transfer', 'Stats', 'transfer_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
 	s.Require().NoError(err)
 
 	cardFrom := "1111222233334444"
 	cardTo := "5555666677778888"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", userID, cardFrom)
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", userID, cardFrom).Error
 	s.Require().NoError(err)
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", userID, cardTo)
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", userID, cardTo).Error
 	s.Require().NoError(err)
 
 	// Successful transfer
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES ($1, $2, $3, $4, 'success')", 
-		cardFrom, cardTo, 100000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC))
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES (?, ?, ?, ?, 'success')",
+		cardFrom, cardTo, 100000, time.Date(s.testYear, time.Month(s.testMonth), 10, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 
 	// Failed transfer
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES ($1, $2, $3, $4, 'failed')", 
-		cardFrom, cardTo, 50000, time.Date(s.testYear, time.Month(s.testMonth), 11, 10, 0, 0, 0, time.UTC))
+	err = s.gormDB.WithContext(ctx).Exec("INSERT INTO transfers (transfer_from, transfer_to, transfer_amount, transfer_time, status) VALUES (?, ?, ?, ?, 'failed')",
+		cardFrom, cardTo, 50000, time.Date(s.testYear, time.Month(s.testMonth), 11, 10, 0, 0, 0, time.UTC)).Error
 	s.Require().NoError(err)
 
 	// Global Monthly
@@ -109,7 +102,6 @@ func (s *TransferStatsRepositoryTestSuite) TestTransferStatusStats() {
 	s.NoError(err)
 	s.NotEmpty(resCardFailed)
 }
-
 
 func TestTransferStatsRepositorySuite(t *testing.T) {
 	if testing.Short() {

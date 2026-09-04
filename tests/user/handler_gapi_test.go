@@ -7,27 +7,25 @@ import (
 	"time"
 
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/user"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/hash"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
-	"github.com/MamangRust/monolith-payment-gateway-user/handler"
-	"github.com/MamangRust/monolith-payment-gateway-user/repository"
-	"github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/MamangRust/monolith-payment-gateway-user/handler"
+	"github.com/MamangRust/monolith-payment-gateway-user/repository"
+	"github.com/MamangRust/monolith-payment-gateway-user/service"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type UserGapiTestSuite struct {
 	suite.Suite
 	ts     *tests.TestSuite
-	dbPool *pgxpool.Pool
 	userH  handler.Handler
 	userID int32
 }
@@ -36,10 +34,6 @@ func (s *UserGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -69,9 +63,6 @@ func (s *UserGapiTestSuite) SetupSuite() {
 }
 
 func (s *UserGapiTestSuite) TearDownSuite() {
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}

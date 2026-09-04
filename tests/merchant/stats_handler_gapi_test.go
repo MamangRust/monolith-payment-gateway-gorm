@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/MamangRust/monolith-payment-gateway-merchant/handler/stats"
-	pb_merchant "github.com/MamangRust/monolith-payment-gateway-pb/merchant"
-	pb "github.com/MamangRust/monolith-payment-gateway-pb/merchant/stats"
 	stats_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/stats"
 	apikey_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/statsbyapikey"
 	merchant_cache "github.com/MamangRust/monolith-payment-gateway-merchant/redis/statsbymerchant"
@@ -19,40 +17,36 @@ import (
 	stats_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/stats"
 	apikey_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/statsbyapikey"
 	merchant_service "github.com/MamangRust/monolith-payment-gateway-merchant/service/statsbymerchant"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	pb_merchant "github.com/MamangRust/monolith-payment-gateway-pb/merchant"
+	pb "github.com/MamangRust/monolith-payment-gateway-pb/merchant/stats"
 	logger_pkg "github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type MerchantStatsHandlerGapiTestSuite struct {
 	suite.Suite
-	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
-	lis         *bufconn.Listener
-	conn        *grpc.ClientConn
-	merchantID  int32
-	apiKey      string
-	testYear    int
+	ts         *tests.TestSuite
+	lis        *bufconn.Listener
+	conn       *grpc.ClientConn
+	merchantID int32
+	apiKey     string
+	testYear   int
 }
 
 func (s *MerchantStatsHandlerGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -62,7 +56,7 @@ func (s *MerchantStatsHandlerGapiTestSuite) SetupSuite() {
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
 	}
-	
+
 	// Logger & Observability
 	logger_pkg.ResetInstance()
 	lp := sdklog.NewLoggerProvider()
@@ -104,7 +98,7 @@ func (s *MerchantStatsHandlerGapiTestSuite) SetupSuite() {
 	// I'll check what service.Service has.
 	// Oh, I see NewMerchantStatsHandler(service service.Service)
 	// I'll create a mock or a partial service.Service.
-	
+
 	// I'll just use the real handler constructor if possible or create individual handlers.
 	amountHandler := merchantstatshandler.NewMerchantStatsAmountHandler(svc, m_svc, a_svc)
 	methodHandler := merchantstatshandler.NewMerchantStatsMethodHandler(svc, m_svc, a_svc)
@@ -123,10 +117,10 @@ func (s *MerchantStatsHandlerGapiTestSuite) SetupSuite() {
 		}
 	}()
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet", 
+	conn, err := grpc.DialContext(context.Background(), "bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 	s.conn = conn
@@ -136,13 +130,17 @@ func (s *MerchantStatsHandlerGapiTestSuite) SetupSuite() {
 	// Seed Data
 	ctx := context.Background()
 	var userID int32
-	s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Gapi', 'Stats', 'gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('Gapi', 'Stats', 'gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&userID).Error
+	s.Require().NoError(err)
 
 	s.apiKey = "gapi-key-1"
-	s.dbPool.QueryRow(ctx, "INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Gapi Merchant', $1, $2, 'active') RETURNING merchant_id", s.apiKey, userID).Scan(&s.merchantID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO merchants (name, api_key, user_id, status) VALUES ('Gapi Merchant', ?, ?, 'active') RETURNING merchant_id", s.apiKey, userID).Scan(&s.merchantID).Error
+	s.Require().NoError(err)
 
-	s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, '1212121212121212', 'debit', '123', 'visa', '2030-01-01')", userID)
-	s.dbPool.Exec(ctx, "INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ('1212121212121212', 2000, 'visa', $1, $2, 'success')", s.merchantID, time.Date(s.testYear, 1, 1, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, '1212121212121212', 'debit', '123', 'visa', '2030-01-01')", userID).Error
+	s.Require().NoError(err)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO transactions (card_number, amount, payment_method, merchant_id, transaction_time, status) VALUES ('1212121212121212', 2000, 'visa', ?, ?, 'success')", s.merchantID, time.Date(s.testYear, 1, 1, 10, 0, 0, 0, time.UTC)).Error
+	s.Require().NoError(err)
 }
 
 func (s *MerchantStatsHandlerGapiTestSuite) TearDownSuite() {

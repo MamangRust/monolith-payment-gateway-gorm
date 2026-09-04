@@ -6,17 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
-	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-role/repository"
 	"github.com/MamangRust/monolith-payment-gateway-role/service"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
+	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
+	"github.com/MamangRust/monolith-payment-gateway-shared/domain/requests"
 	"github.com/MamangRust/monolith-payment-gateway-shared/observability"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -25,7 +24,6 @@ import (
 type RoleServiceTestSuite struct {
 	suite.Suite
 	ts          *tests.TestSuite
-	dbPool      *pgxpool.Pool
 	redisClient *redis.Client
 	roleService *service.Service
 	roleID      int
@@ -35,10 +33,6 @@ func (s *RoleServiceTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 
 	opts, err := redis.ParseURL(s.ts.RedisURL)
 	s.Require().NoError(err)
@@ -70,9 +64,6 @@ func (s *RoleServiceTestSuite) TearDownSuite() {
 	if s.redisClient != nil {
 		s.redisClient.Close()
 	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
-	}
 	if s.ts != nil {
 		s.ts.Teardown()
 	}
@@ -103,7 +94,7 @@ func (s *RoleServiceTestSuite) Test2_FindById() {
 
 func (s *RoleServiceTestSuite) Test3_FindAll() {
 	ctx := context.Background()
-	
+
 	req := &requests.FindAllRoles{
 		Search:   "Role",
 		Page:     1,
@@ -117,7 +108,7 @@ func (s *RoleServiceTestSuite) Test3_FindAll() {
 
 func (s *RoleServiceTestSuite) Test4_FindByActive() {
 	ctx := context.Background()
-	
+
 	req := &requests.FindAllRoles{
 		Search:   "Role",
 		Page:     1,
@@ -188,22 +179,22 @@ func (s *RoleServiceTestSuite) Test7_BulkOperations() {
 	success, err = s.roleService.RoleCommand.DeleteAllRolePermanent(ctx)
 	s.NoError(err)
 	s.True(success)
-	
+
 	s.roleID = 0
 }
 
 func (s *RoleServiceTestSuite) Test8_DeletePermanent() {
 	ctx := context.Background()
-	
+
 	// Create another role
 	req := &requests.CreateRoleRequest{
 		Name: fmt.Sprintf("DeleteMe-%d", time.Now().UnixNano()),
 	}
 	res, err := s.roleService.RoleCommand.CreateRole(ctx, req)
 	s.NoError(err)
-	
+
 	rid := int(res.RoleID)
-	
+
 	// Trash first
 	_, err = s.roleService.RoleCommand.TrashedRole(ctx, rid)
 	s.NoError(err)

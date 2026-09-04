@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // roleSeeder is a struct that represents a seeder for the roles table.
 type roleSeeder struct {
-	db     *db.Queries
+	db     *gorm.DB
 	ctx    context.Context
 	logger logger.LoggerInterface
 }
@@ -20,13 +21,13 @@ type roleSeeder struct {
 // responsible for populating the roles table with fake data.
 //
 // Args:
-// db: a pointer to the database queries
+// db: a pointer to the database connection
 // ctx: a context.Context object
 // logger: a logger.LoggerInterface object
 //
 // Returns:
 // a pointer to the roleSeeder struct
-func NewRoleSeeder(db *db.Queries, ctx context.Context, logger logger.LoggerInterface) *roleSeeder {
+func NewRoleSeeder(db *gorm.DB, ctx context.Context, logger logger.LoggerInterface) *roleSeeder {
 	return &roleSeeder{
 		db:     db,
 		ctx:    ctx,
@@ -71,7 +72,7 @@ func (r *roleSeeder) Seed() error {
 	totalRoles := len(randomRoles)
 
 	for i, roleName := range randomRoles {
-		_, err := r.db.CreateRole(r.ctx, roleName)
+		err := r.db.WithContext(r.ctx).Create(&models.Role{RoleName: roleName}).Error
 		if err != nil {
 			r.logger.Error("failed to seed role", zap.Int("role", i+1), zap.String("roleName", roleName), zap.Error(err))
 			return fmt.Errorf("failed to seed role %d (%s): %w", i+1, roleName, err)

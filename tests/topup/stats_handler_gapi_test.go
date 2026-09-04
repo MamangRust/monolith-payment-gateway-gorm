@@ -9,21 +9,20 @@ import (
 
 	pbtopup "github.com/MamangRust/monolith-payment-gateway-pb/topup"
 	pb "github.com/MamangRust/monolith-payment-gateway-pb/topup/stats"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"github.com/MamangRust/monolith-payment-gateway-pkg/logger"
 	"github.com/MamangRust/monolith-payment-gateway-shared/cache"
 	tests "github.com/MamangRust/monolith-payment-gateway-test"
 	"github.com/MamangRust/monolith-payment-gateway-topup/handler"
 	"github.com/MamangRust/monolith-payment-gateway-topup/repository"
 	"github.com/MamangRust/monolith-payment-gateway-topup/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	card_repo "github.com/MamangRust/monolith-payment-gateway-card/repository"
 	saldo_repo "github.com/MamangRust/monolith-payment-gateway-saldo/repository"
@@ -32,7 +31,6 @@ import (
 type TopupStatsHandlerGapiTestSuite struct {
 	suite.Suite
 	ts           *tests.TestSuite
-	dbPool       *pgxpool.Pool
 	lis          *bufconn.Listener
 	conn         *grpc.ClientConn
 	amountClient pb.TopupStatsAmountServiceClient
@@ -46,10 +44,6 @@ func (s *TopupStatsHandlerGapiTestSuite) SetupSuite() {
 	ts, err := tests.SetupTestSuite()
 	s.Require().NoError(err)
 	s.ts = ts
-
-	pool, err := pgxpool.New(s.ts.Ctx, s.ts.DBURL)
-	s.Require().NoError(err)
-	s.dbPool = pool
 	gormDB, gormErr := gorm.Open(postgres.Open(s.ts.DBURL), &gorm.Config{})
 	if gormErr != nil {
 		s.Require().NoError(gormErr)
@@ -91,10 +85,10 @@ func (s *TopupStatsHandlerGapiTestSuite) SetupSuite() {
 		}
 	}()
 
-	conn, err := grpc.NewClient("passthrough://bufnet", 
+	conn, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return s.lis.Dial()
-		}), 
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 	s.conn = conn
@@ -106,14 +100,15 @@ func (s *TopupStatsHandlerGapiTestSuite) SetupSuite() {
 
 	// Seed Data
 	ctx := context.Background()
-	err = s.dbPool.QueryRow(ctx, "INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TopupGapi', 'Stats', 'topup_gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID)
+	err = gormDB.WithContext(ctx).Raw("INSERT INTO users (firstname, lastname, email, password, verification_code, is_verified) VALUES ('TopupGapi', 'Stats', 'topup_gapi_stats@example.com', 'pass', '123', true) RETURNING user_id").Scan(&s.userID).Error
 	s.Require().NoError(err)
 
 	s.cardNumber1 = "3333444455556666"
-	_, err = s.dbPool.Exec(ctx, "INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES ($1, $2, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber1)
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO cards (user_id, card_number, card_type, cvv, card_provider, expire_date) VALUES (?, ?, 'debit', '123', 'visa', '2030-01-01')", s.userID, s.cardNumber1).Error
 	s.Require().NoError(err)
 
-	s.dbPool.Exec(ctx, "INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES ($1, $2, $3, $4, 'success')", s.cardNumber1, 5000, "bank_transfer", time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC))
+	err = gormDB.WithContext(ctx).Exec("INSERT INTO topups (card_number, topup_amount, topup_method, topup_time, status) VALUES (?, ?, ?, ?, 'success')", s.cardNumber1, 5000, "bank_transfer", time.Date(s.testYear, 1, 10, 10, 0, 0, 0, time.UTC)).Error
+	s.Require().NoError(err)
 }
 
 func (s *TopupStatsHandlerGapiTestSuite) TearDownSuite() {
@@ -122,9 +117,6 @@ func (s *TopupStatsHandlerGapiTestSuite) TearDownSuite() {
 	}
 	if s.lis != nil {
 		s.lis.Close()
-	}
-	if s.dbPool != nil {
-		s.dbPool.Close()
 	}
 	s.ts.Teardown()
 }

@@ -11,17 +11,17 @@ import (
 
 type merchantTransactionAllResponse struct {
 	Data         []*models.MerchantTransactionRow `json:"data"`
-	TotalRecords *int                         `json:"total_records"`
+	TotalRecords *int                             `json:"total_records"`
 }
 
 type merchantTransactionByMerchantResponse struct {
 	Data         []*models.MerchantTransactionRow `json:"data"`
-	TotalRecords *int                                   `json:"total_records"`
+	TotalRecords *int                             `json:"total_records"`
 }
 
 type merchantTransactionByApikeyResponse struct {
 	Data         []*models.MerchantTransactionRow `json:"data"`
-	TotalRecords *int                                 `json:"total_records"`
+	TotalRecords *int                             `json:"total_records"`
 }
 
 type merchantTransactionCache struct {

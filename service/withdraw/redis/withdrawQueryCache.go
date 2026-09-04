@@ -11,7 +11,7 @@ import (
 
 type withdrawCachedResponseAll struct {
 	Data         []*models.WithdrawListRow `json:"data"`
-	TotalRecords *int                  `json:"total_records"`
+	TotalRecords *int                      `json:"total_records"`
 }
 
 type withdrawCachedResponseByCard struct {
@@ -21,12 +21,12 @@ type withdrawCachedResponseByCard struct {
 
 type withdrawCachedResponseActive struct {
 	Data         []*models.WithdrawListRow `json:"data"`
-	TotalRecords *int                        `json:"total_records"`
+	TotalRecords *int                      `json:"total_records"`
 }
 
 type withdrawCachedResponseTrashed struct {
 	Data         []*models.WithdrawListWithDeletedRow `json:"data"`
-	TotalRecords *int                         `json:"total_records"`
+	TotalRecords *int                                 `json:"total_records"`
 }
 
 type withdrawQueryCache struct {

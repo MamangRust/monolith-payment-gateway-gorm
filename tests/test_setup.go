@@ -7,18 +7,20 @@ import (
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
+	gormpostgres "gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"os"
 	"path/filepath"
 )
 
 type TestSuite struct {
-	PGContainer    *postgres.PostgresContainer
+	PGContainer    *tcpostgres.PostgresContainer
 	RedisContainer *redis.RedisContainer
 	DBURL          string
 	RedisURL       string
@@ -29,11 +31,11 @@ func SetupTestSuite() (*TestSuite, error) {
 	ctx := context.Background()
 
 	// Setup PostgreSQL
-	pgContainer, err := postgres.Run(ctx,
+	pgContainer, err := tcpostgres.Run(ctx,
 		"postgres:17-alpine",
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("testuser"),
-		postgres.WithPassword("testpass"),
+		tcpostgres.WithDatabase("testdb"),
+		tcpostgres.WithUsername("testuser"),
+		tcpostgres.WithPassword("testpass"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -95,7 +97,7 @@ func SetupTestSuite() (*TestSuite, error) {
 }
 
 func (ts *TestSuite) RunMigrations(migrationsDir string) error {
-	db, err := goose.OpenDBWithDriver("pgx", ts.DBURL)
+	db, err := goose.OpenDBWithDriver("postgres", ts.DBURL)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
@@ -106,6 +108,10 @@ func (ts *TestSuite) RunMigrations(migrationsDir string) error {
 	}
 
 	return nil
+}
+
+func (ts *TestSuite) GormDB() (*gorm.DB, error) {
+	return gorm.Open(gormpostgres.Open(ts.DBURL), &gorm.Config{})
 }
 
 func (ts *TestSuite) Teardown() {

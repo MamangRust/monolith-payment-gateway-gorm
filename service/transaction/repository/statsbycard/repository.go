@@ -16,8 +16,8 @@ type repository struct {
 
 func NewTransactionStatsByCardRepository(db *gorm.DB) TransactionStatsByCardRepository {
 	return &repository{
-		TransactionStatsByCardAmountRepository:  NewTransactionStatsByCardAmountRepository(db),
+		TransactionStatsByCardAmountRepository: NewTransactionStatsByCardAmountRepository(db),
 		TransactionStatsByCardMethodRepository: NewTransactionStatsByCardMethodRepository(db),
-		TransactionStatsByCardStatusRepository:  NewTransactionStatsByCardStatusRepository(db),
+		TransactionStatsByCardStatusRepository: NewTransactionStatsByCardStatusRepository(db),
 	}
 }

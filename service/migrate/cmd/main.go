@@ -8,13 +8,13 @@ import (
 	"os"
 
 	"github.com/MamangRust/monolith-payment-gateway-pkg/dotenv"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/viper"
 )
 
 const (
-	dialect = "pgx"
+	dialect = "postgres"
 )
 
 var (

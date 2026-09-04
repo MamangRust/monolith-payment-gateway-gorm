@@ -42,4 +42,3 @@ func NewWithdrawStatsService(deps *DepsStats) WithdrawStatsService {
 		}),
 	}
 }
-

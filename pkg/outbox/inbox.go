@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
+	"gorm.io/gorm"
 )
 
 var ErrInvalidInboxKey = errors.New("invalid consumer inbox key")
@@ -17,40 +17,81 @@ type ConsumerInbox interface {
 	Release(ctx context.Context, consumerName, eventKey string, reservationVersion int64, processingErr error) error
 }
 
-// InboxExecutor is sqlc's generated DBTX contract. Using it here guarantees
-// inbox persistence follows the same query-file/code-generation rule as the
-// domain repositories.
-type InboxExecutor interface {
-	db.DBTX
+type reservationRow struct {
+	Reserved           bool  `gorm:"column:reserved"`
+	Processed          bool  `gorm:"column:processed"`
+	ReservationVersion int64 `gorm:"column:reservation_version"`
 }
 
 // Reserve claims an event for a consumer. It returns false when the event was
 // already processed. An expired processing lease may be reclaimed after a
-// consumer crashes.
-func Reserve(ctx context.Context, tx InboxExecutor, consumerName, eventKey, topic string, partition int32, offset int64) (bool, bool, int64, error) {
+// consumer crashes. It renders the same lease-fenced upsert as the original
+// ReserveConsumerInbox statement through GORM.
+func Reserve(ctx context.Context, tx *gorm.DB, consumerName, eventKey, topic string, partition int32, offset int64) (bool, bool, int64, error) {
 	if tx == nil || consumerName == "" || eventKey == "" {
 		return false, false, 0, ErrInvalidInboxKey
 	}
-	reservation, err := db.New(tx).ReserveConsumerInbox(ctx, db.ReserveConsumerInboxParams{
-		ConsumerName: consumerName, EventKey: eventKey, Topic: topic,
-		PartitionID: partition, MessageOffset: offset,
-	})
+	var row reservationRow
+	err := tx.WithContext(ctx).Raw(`
+		WITH reserved AS (
+			INSERT INTO consumer_inbox (
+				consumer_name, event_key, topic, partition_id, message_offset,
+				status, attempts, reservation_version, lease_until, last_error, processed_at
+			)
+			VALUES (?, ?, ?, ?, ?, 'processing', 1, 1,
+			        current_timestamp + interval '1 minute', '', NULL)
+			ON CONFLICT (consumer_name, event_key) DO UPDATE
+			SET status = 'processing',
+			    attempts = consumer_inbox.attempts + 1,
+			    reservation_version = consumer_inbox.reservation_version + 1,
+			    lease_until = current_timestamp + interval '1 minute',
+			    last_error = '',
+			    topic = EXCLUDED.topic,
+			    partition_id = EXCLUDED.partition_id,
+			    message_offset = EXCLUDED.message_offset
+			WHERE consumer_inbox.status <> 'processed'
+			  AND consumer_inbox.lease_until <= current_timestamp
+			RETURNING reservation_version
+		)
+		SELECT
+			EXISTS (SELECT 1 FROM reserved) AS reserved,
+			EXISTS (
+				SELECT 1
+				FROM consumer_inbox ci
+				WHERE ci.consumer_name = ?
+				  AND ci.event_key = ?
+				  AND ci.status = 'processed'
+			) AS processed,
+			COALESCE(
+				(SELECT reservation_version FROM reserved),
+				(SELECT ci.reservation_version FROM consumer_inbox ci WHERE ci.consumer_name = ? AND ci.event_key = ?)
+			) AS reservation_version`,
+		consumerName, eventKey, topic, partition, offset,
+		consumerName, eventKey, consumerName, eventKey,
+	).Scan(&row).Error
 	if err != nil {
 		return false, false, 0, err
 	}
-	return reservation.Reserved, reservation.Processed, reservation.ReservationVersion, nil
+	return row.Reserved, row.Processed, row.ReservationVersion, nil
 }
 
-func MarkProcessed(ctx context.Context, tx InboxExecutor, consumerName, eventKey string, reservationVersion int64) error {
+func MarkProcessed(ctx context.Context, tx *gorm.DB, consumerName, eventKey string, reservationVersion int64) error {
 	if tx == nil || consumerName == "" || eventKey == "" {
 		return ErrInvalidInboxKey
 	}
-	return db.New(tx).MarkConsumerInboxProcessed(ctx, db.MarkConsumerInboxProcessedParams{
-		ConsumerName: consumerName, EventKey: eventKey, ReservationVersion: reservationVersion,
-	})
+	// Completes only the active reservation.
+	return tx.WithContext(ctx).Model(&models.ConsumerInbox{}).
+		Where("consumer_name = ? AND event_key = ? AND status = 'processing' AND reservation_version = ?",
+			consumerName, eventKey, reservationVersion).
+		Updates(map[string]interface{}{
+			"status":       "processed",
+			"processed_at": gorm.Expr("current_timestamp"),
+			"lease_until":  gorm.Expr("current_timestamp"),
+			"last_error":   "",
+		}).Error
 }
 
-func Release(ctx context.Context, tx InboxExecutor, consumerName, eventKey string, reservationVersion int64, processingErr error) error {
+func Release(ctx context.Context, tx *gorm.DB, consumerName, eventKey string, reservationVersion int64, processingErr error) error {
 	if tx == nil || consumerName == "" || eventKey == "" {
 		return ErrInvalidInboxKey
 	}
@@ -58,61 +99,55 @@ func Release(ctx context.Context, tx InboxExecutor, consumerName, eventKey strin
 	if processingErr != nil {
 		lastError = processingErr.Error()
 	}
-	return db.New(tx).ReleaseConsumerInbox(ctx, db.ReleaseConsumerInboxParams{
-		ConsumerName: consumerName, EventKey: eventKey, LastError: lastError, ReservationVersion: reservationVersion,
-	})
+	// Releases only the active reservation.
+	return tx.WithContext(ctx).Model(&models.ConsumerInbox{}).
+		Where("consumer_name = ? AND event_key = ? AND status = 'processing' AND reservation_version = ?",
+			consumerName, eventKey, reservationVersion).
+		Updates(map[string]interface{}{
+			"status":      "pending",
+			"lease_until": gorm.Expr("current_timestamp"),
+			"last_error":  lastError,
+		}).Error
 }
 
-// PostgresInbox adapts a pgx pool to ConsumerInbox. Reservation and completion
-// are committed independently because an external side effect cannot share a
-// PostgreSQL transaction with the Kafka consumer.
+// PostgresInbox adapts a GORM database to ConsumerInbox. Reservation and
+// completion are committed independently because an external side effect
+// cannot share a PostgreSQL transaction with the Kafka consumer.
 type PostgresInbox struct {
-	pool *pgxpool.Pool
+	db *gorm.DB
 }
 
-func NewPostgresInbox(pool *pgxpool.Pool) (*PostgresInbox, error) {
-	if pool == nil {
-		return nil, errors.New("inbox pool is nil")
+func NewPostgresInbox(db *gorm.DB) (*PostgresInbox, error) {
+	if db == nil {
+		return nil, errors.New("inbox database is nil")
 	}
-	return &PostgresInbox{pool: pool}, nil
+	return &PostgresInbox{db: db}, nil
 }
 
 func (i *PostgresInbox) Reserve(ctx context.Context, consumerName, eventKey, topic string, partition int32, offset int64) (bool, bool, int64, error) {
-	tx, err := i.pool.Begin(ctx)
+	var (
+		reserved, processed bool
+		version             int64
+	)
+	err := i.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		reserved, processed, version, err = Reserve(ctx, tx, consumerName, eventKey, topic, partition, offset)
+		return err
+	})
 	if err != nil {
 		return false, false, 0, err
 	}
-	defer tx.Rollback(ctx)
-	reserved, processed, reservationVersion, err := Reserve(ctx, tx, consumerName, eventKey, topic, partition, offset)
-	if err != nil {
-		return false, false, 0, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, false, 0, err
-	}
-	return reserved, processed, reservationVersion, nil
+	return reserved, processed, version, nil
 }
 
 func (i *PostgresInbox) MarkProcessed(ctx context.Context, consumerName, eventKey string, reservationVersion int64) error {
-	tx, err := i.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if err := MarkProcessed(ctx, tx, consumerName, eventKey, reservationVersion); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return i.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return MarkProcessed(ctx, tx, consumerName, eventKey, reservationVersion)
+	})
 }
 
 func (i *PostgresInbox) Release(ctx context.Context, consumerName, eventKey string, reservationVersion int64, processingErr error) error {
-	tx, err := i.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if err := Release(ctx, tx, consumerName, eventKey, reservationVersion, processingErr); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return i.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return Release(ctx, tx, consumerName, eventKey, reservationVersion, processingErr)
+	})
 }

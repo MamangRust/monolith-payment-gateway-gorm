@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	db "github.com/MamangRust/monolith-payment-gateway-pkg/database/schema"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/MamangRust/monolith-payment-gateway-pkg/database/models"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -34,30 +34,22 @@ func (e Event) Validate() error {
 	return nil
 }
 
-// Executor is satisfied by pgx.Tx and keeps enqueue usable inside an existing
-// business transaction. The caller owns commit/rollback of the transaction.
-type Executor interface {
-	db.DBTX
-}
-
-// Enqueue persists an event in the caller's transaction. A duplicate event key
-// is treated as success, which makes retries of a business transaction safe.
-func Enqueue(ctx context.Context, tx Executor, event Event) error {
+// Enqueue persists an event inside the caller's GORM transaction. A duplicate
+// event key is treated as success, which makes retries of a business
+// transaction safe.
+func Enqueue(ctx context.Context, tx *gorm.DB, event Event) error {
 	if err := event.Validate(); err != nil {
 		return err
 	}
 	if tx == nil {
 		return errors.New("outbox executor is nil")
 	}
-	// Enqueue intentionally remains a small generic helper for callers that
-	// already own a transaction. Domain commands use SQLC queries for their
-	// event insertion; the helper is retained for package-level compatibility.
-	return db.New(tx).EnqueueOutboxEvent(ctx, db.EnqueueOutboxEventParams{
+	return tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&models.OutboxEvent{
 		EventKey:   event.EventKey,
 		Topic:      event.Topic,
 		MessageKey: event.Key,
-		Column4:    event.Payload,
-	})
+		Payload:    event.Payload,
+	}).Error
 }
 
 // Publisher is implemented by pkg/kafka.Kafka and deliberately kept small so
@@ -91,19 +83,19 @@ func (c RelayConfig) withDefaults() RelayConfig {
 }
 
 type Relay struct {
-	pool      *pgxpool.Pool
+	db        *gorm.DB
 	publisher Publisher
 	config    RelayConfig
 }
 
-func NewRelay(pool *pgxpool.Pool, publisher Publisher, config RelayConfig) (*Relay, error) {
-	if pool == nil {
-		return nil, errors.New("outbox pool is nil")
+func NewRelay(db *gorm.DB, publisher Publisher, config RelayConfig) (*Relay, error) {
+	if db == nil {
+		return nil, errors.New("outbox database is nil")
 	}
 	if publisher == nil {
 		return nil, ErrNoPublisher
 	}
-	return &Relay{pool: pool, publisher: publisher, config: config.withDefaults()}, nil
+	return &Relay{db: db, publisher: publisher, config: config.withDefaults()}, nil
 }
 
 // Run polls until ctx is cancelled. A claimed event remains recoverable when
@@ -168,27 +160,53 @@ func (r *Relay) runBatch(ctx context.Context) (int, error) {
 	return len(events), nil
 }
 
+// claim selects eligible events and moves them to 'publishing' atomically.
+// It keeps the original lease semantics (stale publishing rows are reclaimed)
+// and renders the same FOR UPDATE SKIP LOCKED claim as the source query.
 func (r *Relay) claim(ctx context.Context) ([]claimedEvent, error) {
-	queries := db.New(r.pool)
-	var rows []*db.ClaimOutboxEventsRow
+	var rows []models.OutboxEvent
 	var err error
 	if len(r.config.Topics) == 0 {
-		rows, err = queries.ClaimOutboxEvents(ctx, int32(r.config.BatchSize))
+		err = r.db.WithContext(ctx).Raw(`
+			WITH candidates AS (
+				SELECT id
+				FROM outbox_events
+				WHERE ((status = 'pending' AND next_attempt_at <= current_timestamp)
+				   OR (status = 'publishing' AND updated_at < current_timestamp - interval '1 minute'))
+				ORDER BY id
+				FOR UPDATE SKIP LOCKED
+				LIMIT ?
+			)
+			UPDATE outbox_events e
+			SET status = 'publishing', attempts = e.attempts + 1,
+			    claim_version = e.claim_version + 1,
+			    updated_at = current_timestamp
+			FROM candidates c
+			WHERE e.id = c.id
+			RETURNING e.id, e.topic, e.message_key, e.payload, e.attempts, e.claim_version`,
+			r.config.BatchSize,
+		).Scan(&rows).Error
 	} else {
-		topicRows, topicErr := queries.ClaimOutboxEventsByTopics(ctx, db.ClaimOutboxEventsByTopicsParams{
-			Limit:   int32(r.config.BatchSize),
-			Column2: r.config.Topics,
-		})
-		err = topicErr
-		if topicErr == nil {
-			rows = make([]*db.ClaimOutboxEventsRow, 0, len(topicRows))
-			for _, row := range topicRows {
-				rows = append(rows, &db.ClaimOutboxEventsRow{
-					ID: row.ID, Topic: row.Topic, MessageKey: row.MessageKey,
-					Payload: row.Payload, Attempts: row.Attempts, ClaimVersion: row.ClaimVersion,
-				})
-			}
-		}
+		err = r.db.WithContext(ctx).Raw(`
+			WITH candidates AS (
+				SELECT id
+				FROM outbox_events
+				WHERE ((status = 'pending' AND next_attempt_at <= current_timestamp)
+				   OR (status = 'publishing' AND updated_at < current_timestamp - interval '1 minute'))
+				  AND topic = ANY(?)
+				ORDER BY id
+				FOR UPDATE SKIP LOCKED
+				LIMIT ?
+			)
+			UPDATE outbox_events e
+			SET status = 'publishing', attempts = e.attempts + 1,
+			    claim_version = e.claim_version + 1,
+			    updated_at = current_timestamp
+			FROM candidates c
+			WHERE e.id = c.id
+			RETURNING e.id, e.topic, e.message_key, e.payload, e.attempts, e.claim_version`,
+			r.config.Topics, r.config.BatchSize,
+		).Scan(&rows).Error
 	}
 	if err != nil {
 		return nil, err
@@ -211,9 +229,14 @@ func (r *Relay) publish(ctx context.Context, event claimedEvent) error {
 }
 
 func (r *Relay) markPublished(ctx context.Context, event claimedEvent) error {
-	return db.New(r.pool).MarkOutboxPublished(ctx, db.MarkOutboxPublishedParams{
-		ID: event.ID, ClaimVersion: event.ClaimVersion,
-	})
+	return r.db.WithContext(ctx).Model(&models.OutboxEvent{}).
+		Where("id = ? AND status = 'publishing' AND claim_version = ?", event.ID, event.ClaimVersion).
+		Updates(map[string]interface{}{
+			"status":       "published",
+			"published_at": gorm.Expr("current_timestamp"),
+			"updated_at":   gorm.Expr("current_timestamp"),
+			"last_error":   "",
+		}).Error
 }
 
 func (r *Relay) markFailed(ctx context.Context, event claimedEvent, publishErr error) error {
@@ -226,11 +249,14 @@ func (r *Relay) markFailed(ctx context.Context, event claimedEvent, publishErr e
 		attempt = 1
 	}
 	backoff := r.config.BaseBackoff * time.Duration(1<<(attempt-1))
-	return db.New(r.pool).MarkOutboxFailed(ctx, db.MarkOutboxFailedParams{
-		ID: event.ID, Status: status,
-		Column3:   pgtype.Interval{Microseconds: backoff.Microseconds()},
-		LastError: publishErr.Error(), ClaimVersion: event.ClaimVersion,
-	})
+	return r.db.WithContext(ctx).Model(&models.OutboxEvent{}).
+		Where("id = ? AND status = 'publishing' AND claim_version = ?", event.ID, event.ClaimVersion).
+		Updates(map[string]interface{}{
+			"status":          status,
+			"next_attempt_at": gorm.Expr("current_timestamp + (? * interval '1 microsecond')", backoff.Microseconds()),
+			"last_error":      publishErr.Error(),
+			"updated_at":      gorm.Expr("current_timestamp"),
+		}).Error
 }
 
 func min(a, b int) int {

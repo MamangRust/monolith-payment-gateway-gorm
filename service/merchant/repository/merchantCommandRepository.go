@@ -49,9 +49,9 @@ func (r *merchantCommandRepository) UpdateMerchant(ctx context.Context, request 
 	result := r.db.WithContext(ctx).Model(&models.Merchant{}).
 		Where("merchant_id = ? AND deleted_at IS NULL", *request.MerchantID).
 		Updates(map[string]interface{}{
-			"name":   request.Name,
+			"name":    request.Name,
 			"user_id": int32(request.UserID),
-			"status": request.Status,
+			"status":  request.Status,
 		})
 	if result.Error != nil {
 		return nil, sharedErrors.ErrNoRowsOrFailed(result.Error, "Merchant", "update merchant")

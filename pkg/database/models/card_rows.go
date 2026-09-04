@@ -178,8 +178,8 @@ type MonthlyAmountRow struct {
 
 // YearlyAmountRow - yearly stats with single amount
 type YearlyAmountRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	Amount int64       `gorm:"column:amount" json:"amount"`
+	Year   string `gorm:"column:year" json:"year"`
+	Amount int64  `gorm:"column:amount" json:"amount"`
 }
 
 // MonthlyBalanceRow - monthly balance stats
@@ -190,8 +190,8 @@ type MonthlyBalanceRow struct {
 
 // YearlyBalanceRow - yearly balance stats
 type YearlyBalanceRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalBalance int64       `gorm:"column:total_balance" json:"total_balance"`
+	Year         string `gorm:"column:year" json:"year"`
+	TotalBalance int64  `gorm:"column:total_balance" json:"total_balance"`
 }
 
 // MonthlyTopupRow - monthly topup stats
@@ -202,8 +202,8 @@ type MonthlyTopupRow struct {
 
 // YearlyTopupRow - yearly topup stats
 type YearlyTopupRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalTopupAmount int64       `gorm:"column:total_topup_amount" json:"total_topup_amount"`
+	Year             string `gorm:"column:year" json:"year"`
+	TotalTopupAmount int64  `gorm:"column:total_topup_amount" json:"total_topup_amount"`
 }
 
 // MonthlyTransactionRow - monthly transaction stats
@@ -214,8 +214,8 @@ type MonthlyTransactionRow struct {
 
 // YearlyTransactionRow - yearly transaction stats
 type YearlyTransactionRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalTransactionAmount int64       `gorm:"column:total_transaction_amount" json:"total_transaction_amount"`
+	Year                   string `gorm:"column:year" json:"year"`
+	TotalTransactionAmount int64  `gorm:"column:total_transaction_amount" json:"total_transaction_amount"`
 }
 
 // MonthlyTransferSentRow - monthly transfer sent stats
@@ -226,8 +226,8 @@ type MonthlyTransferSentRow struct {
 
 // YearlyTransferSentRow - yearly transfer sent stats
 type YearlyTransferSentRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalSentAmount int64       `gorm:"column:total_sent_amount" json:"total_sent_amount"`
+	Year            string `gorm:"column:year" json:"year"`
+	TotalSentAmount int64  `gorm:"column:total_sent_amount" json:"total_sent_amount"`
 }
 
 // MonthlyTransferReceivedRow - monthly transfer received stats
@@ -238,8 +238,8 @@ type MonthlyTransferReceivedRow struct {
 
 // YearlyTransferReceivedRow - yearly transfer received stats
 type YearlyTransferReceivedRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalReceivedAmount int64       `gorm:"column:total_received_amount" json:"total_received_amount"`
+	Year                string `gorm:"column:year" json:"year"`
+	TotalReceivedAmount int64  `gorm:"column:total_received_amount" json:"total_received_amount"`
 }
 
 // MonthlyWithdrawRow - monthly withdraw stats
@@ -250,8 +250,8 @@ type MonthlyWithdrawRow struct {
 
 // YearlyWithdrawRow - yearly withdraw stats
 type YearlyWithdrawRow struct {
-	Year        string `gorm:"column:year" json:"year"`
-	TotalWithdrawAmount int64       `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
+	Year                string `gorm:"column:year" json:"year"`
+	TotalWithdrawAmount int64  `gorm:"column:total_withdraw_amount" json:"total_withdraw_amount"`
 }
 
 // ---- Shared rows (used by multiple services) ----
